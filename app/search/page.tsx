@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const searchFilters = {
   area: "Lat Phrao",
   areaMm: "လတ်ပါး",
@@ -473,15 +475,15 @@ export default function SearchPage() {
                       </p>
 
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                        <button
-                          type="button"
+                        <Link
+                          href={`/property/${property.code}`}
                           className="inline-flex h-11 flex-1 flex-col items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
                         >
                           <span>အသေးစိတ်ကြည့်ရန်</span>
                           <span className="text-xs font-normal text-emerald-100">
                             View Details
                           </span>
-                        </button>
+                        </Link>
                         <button
                           type="button"
                           className="inline-flex h-11 flex-1 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
