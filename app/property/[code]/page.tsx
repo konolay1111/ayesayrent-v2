@@ -2,6 +2,7 @@ import { BilingualLabel } from "@/components/BilingualLabel";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { SectionHeading } from "@/components/SectionHeading";
+import { ShortlistButton } from "@/components/ShortlistButton";
 
 const propertyData = {
   rent: "฿8,500",
@@ -415,15 +416,10 @@ export default async function PropertyPage({ params }: PageProps) {
                       Check Availability
                     </span>
                   </button>
-                  <button
-                    type="button"
+                  <ShortlistButton
+                    propertyCode={code}
                     className="inline-flex h-11 w-full flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
-                  >
-                    <span>ရွေးချယ်စာရင်းသို့ ထည့်ရန်</span>
-                    <span className="text-xs font-normal text-emerald-600/70">
-                      Add to Shortlist
-                    </span>
-                  </button>
+                  />
                   <button
                     type="button"
                     className="inline-flex h-11 w-full flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"

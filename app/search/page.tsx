@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShortlistButton } from "@/components/ShortlistButton";
 
 const searchFilters = {
   area: "Lat Phrao",
@@ -340,6 +341,15 @@ export default function SearchPage() {
               {resultCount} ခု တွေ့ရှိပါသည်
               <span className="ml-1">· {resultCount} properties found</span>
             </p>
+            <Link
+              href="/shortlist"
+              className="mt-3 inline-flex h-10 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100"
+            >
+              <span>ရွေးချယ်စာရင်း ကြည့်ရန်</span>
+              <span className="text-xs font-normal text-emerald-600/80">
+                View Shortlist
+              </span>
+            </Link>
           </section>
 
           {/* 6. Shortlist information box */}
@@ -484,15 +494,7 @@ export default function SearchPage() {
                             View Details
                           </span>
                         </Link>
-                        <button
-                          type="button"
-                          className="inline-flex h-11 flex-1 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
-                        >
-                          <span>ရွေးချယ်စာရင်းသို့ ထည့်ရန်</span>
-                          <span className="text-xs font-normal text-emerald-600/70">
-                            Add to Shortlist
-                          </span>
-                        </button>
+                        <ShortlistButton propertyCode={property.code} />
                       </div>
                     </div>
                   </article>
