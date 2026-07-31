@@ -1,3 +1,4 @@
+import { createAdminServiceClient } from "@/lib/supabase/admin-service";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicAmenityLabels } from "@/lib/public-search/amenity-display";
 import { formatPublicReference } from "@/lib/public-search/format";
@@ -22,6 +23,38 @@ const INACTIVE_RECORD_STATUSES = new Set([
   "deleted",
   "draft",
 ]);
+
+type SupabaseErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
+function logPublicSearchError(
+  context: string,
+  error: SupabaseErrorLike,
+  metadata?: Record<string, unknown>,
+) {
+  console.error(context, {
+    message: error.message ?? null,
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    ...metadata,
+  });
+}
+
+async function createPublicSearchSupabaseClient() {
+  try {
+    return createAdminServiceClient();
+  } catch (error) {
+    console.error("Public search admin service client unavailable:", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return createClient();
+  }
+}
 
 export function parseSearchFilters(searchParams: {
   area?: string;
@@ -113,7 +146,7 @@ function amenityMatchesPet(
 }
 
 export async function getSearchFilterOptions(): Promise<SearchFilterOptions> {
-  const supabase = await createClient();
+  const supabase = await createPublicSearchSupabaseClient();
 
   const { data, error } = await supabase
     .from("properties")
@@ -122,11 +155,15 @@ export async function getSearchFilterOptions(): Promise<SearchFilterOptions> {
     .order("transit_name");
 
   if (error) {
-    console.error("Failed to load public search filter options:", error.message);
+    logPublicSearchError("Failed to load public search filter options", error);
     return { areas: [], stationsByArea: {}, allStations: [] };
   }
 
   const properties = (data ?? []) as unknown as PublicPropertyRow[];
+
+  if (properties.length === 0) {
+    console.warn("Public search filter options query returned zero properties.");
+  }
   const areaSet = new Set<string>();
   const stationSet = new Set<string>();
   const stationsByArea: Record<string, Set<string>> = {};
@@ -169,7 +206,7 @@ export async function getSearchFilterOptions(): Promise<SearchFilterOptions> {
 export async function searchPublicListings(
   filters: PublicSearchFilters,
 ): Promise<{ results: PublicListingResult[]; error: string | null }> {
-  const supabase = await createClient();
+  const supabase = await createPublicSearchSupabaseClient();
 
   let propertyQuery = supabase
     .from("properties")
@@ -187,7 +224,9 @@ export async function searchPublicListings(
   const { data: propertyData, error: propertyError } = await propertyQuery;
 
   if (propertyError) {
-    console.error("Public property search failed:", propertyError.message);
+    logPublicSearchError("Public property search failed", propertyError, {
+      filters,
+    });
     return {
       results: [],
       error: "We could not load search results right now. Please try again.",
@@ -215,7 +254,9 @@ export async function searchPublicListings(
     ]);
 
   if (roomRateError) {
-    console.error("Public room rate search failed:", roomRateError.message);
+    logPublicSearchError("Public room rate search failed", roomRateError, {
+      propertyCount: propertyIds.length,
+    });
     return {
       results: [],
       error: "We could not load search results right now. Please try again.",
