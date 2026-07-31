@@ -2,15 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BLANK_ROOM_RATE_TEMPLATE } from "@/lib/admin/room-rate-fields";
+import {
+  buildRoomRateInsertPayload,
+  parseRoomRateFormValue,
+  ROOM_RATE_FORM_FIELDS,
+  ROOM_RATE_PROTECTED_FIELDS,
+} from "@/lib/admin/room-rate-schema";
 import { requireAdmin } from "@/lib/supabase/server";
-
-const protectedRoomRateFields = new Set([
-  "room_rate_id",
-  "property_id",
-  "created_at",
-  "updated_at",
-]);
 
 type RoomRateValues = Record<string, string | number | boolean | null>;
 
@@ -82,34 +80,19 @@ function getNextRoomRateIdForProperty(
   return String(getNextRoomRateId(highestId));
 }
 
-function parseFieldValue(
-  fieldName: string,
-  currentValue: unknown,
-  rawValue: string,
-): string | number | boolean | null {
-  if (rawValue === "") {
-    if (fieldName === "record_status") {
-      return "active";
+function parseRoomRateFormData(formData: FormData): RoomRateValues {
+  const values: RoomRateValues = {};
+
+  for (const fieldName of ROOM_RATE_FORM_FIELDS) {
+    if (!formData.has(fieldName)) {
+      continue;
     }
 
-    return null;
+    const rawValue = String(formData.get(fieldName) ?? "");
+    values[fieldName] = parseRoomRateFormValue(fieldName, rawValue);
   }
 
-  if (typeof currentValue === "boolean") {
-    return rawValue === "true";
-  }
-
-  if (typeof currentValue === "number") {
-    const numericValue = Number(rawValue);
-
-    if (Number.isNaN(numericValue)) {
-      throw new Error(`${fieldName} must be a valid number.`);
-    }
-
-    return numericValue;
-  }
-
-  return rawValue;
+  return values;
 }
 
 function parseRoomRateUpdates(
@@ -118,8 +101,8 @@ function parseRoomRateUpdates(
 ): RoomRateValues {
   const updates: RoomRateValues = {};
 
-  for (const [fieldName, currentValue] of Object.entries(currentRoomRate)) {
-    if (protectedRoomRateFields.has(fieldName)) {
+  for (const fieldName of Object.keys(currentRoomRate)) {
+    if (ROOM_RATE_PROTECTED_FIELDS.has(fieldName)) {
       continue;
     }
 
@@ -127,43 +110,21 @@ function parseRoomRateUpdates(
       continue;
     }
 
-    const rawValue = String(formData.get(fieldName) ?? "").trim();
-    updates[fieldName] = parseFieldValue(fieldName, currentValue, rawValue);
+    const rawValue = String(formData.get(fieldName) ?? "");
+    updates[fieldName] = parseRoomRateFormValue(fieldName, rawValue);
   }
 
   return updates;
 }
 
-function parseRoomRateInsert(
-  template: Record<string, unknown>,
+export async function updateRoomRateAction(
+  propertyId: string,
   formData: FormData,
-): RoomRateValues {
-  const insert: RoomRateValues = {};
-
-  for (const [fieldName, currentValue] of Object.entries(template)) {
-    if (protectedRoomRateFields.has(fieldName)) {
-      continue;
-    }
-
-    const rawValue = formData.has(fieldName)
-      ? String(formData.get(fieldName) ?? "").trim()
-      : "";
-
-    insert[fieldName] = parseFieldValue(fieldName, currentValue, rawValue);
-  }
-
-  if (!insert.record_status) {
-    insert.record_status = "active";
-  }
-
-  return insert;
-}
-
-export async function updateRoomRateAction(formData: FormData) {
-  const propertyId = String(formData.get("property_id") ?? "").trim();
+) {
+  const normalizedPropertyId = propertyId.trim();
   const roomRateId = String(formData.get("room_rate_id") ?? "").trim();
 
-  if (!propertyId) {
+  if (!normalizedPropertyId) {
     throw new Error("Property ID is required.");
   }
 
@@ -177,42 +138,59 @@ export async function updateRoomRateAction(formData: FormData) {
     .from("room_rates")
     .select("*")
     .eq("room_rate_id", roomRateId)
-    .eq("property_id", propertyId)
+    .eq("property_id", normalizedPropertyId)
     .single();
 
   if (loadError || !currentRoomRate) {
     logRoomRateError("Failed to load room rate before update", loadError ?? {}, {
-      propertyId,
+      propertyId: normalizedPropertyId,
       roomRateId,
     });
     throw new Error("Room rate could not be loaded.");
   }
 
-  const updates = parseRoomRateUpdates(currentRoomRate, formData);
+  let updates: RoomRateValues;
+
+  try {
+    updates = parseRoomRateUpdates(currentRoomRate, formData);
+  } catch (error) {
+    console.error("Failed to parse room rate update form:", {
+      propertyId: normalizedPropertyId,
+      roomRateId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error(
+      error instanceof Error ? error.message : "Room rate update failed.",
+    );
+  }
 
   const { error: updateError } = await supabase
     .from("room_rates")
     .update(updates)
     .eq("room_rate_id", roomRateId)
-    .eq("property_id", propertyId);
+    .eq("property_id", normalizedPropertyId);
 
   if (updateError) {
     logRoomRateError("Failed to update room rate", updateError, {
-      propertyId,
+      propertyId: normalizedPropertyId,
       roomRateId,
+      updates,
     });
     throw new Error("Room rate update failed.");
   }
 
-  revalidatePropertyPaths(propertyId);
+  revalidatePropertyPaths(normalizedPropertyId);
 
-  redirect(`/admin/properties/${propertyId}?roomSaved=1`);
+  redirect(`/admin/properties/${normalizedPropertyId}?roomSaved=1`);
 }
 
-export async function createRoomRateAction(formData: FormData) {
-  const propertyId = String(formData.get("property_id") ?? "").trim();
+export async function createRoomRateAction(
+  propertyId: string,
+  formData: FormData,
+) {
+  const normalizedPropertyId = propertyId.trim();
 
-  if (!propertyId) {
+  if (!normalizedPropertyId) {
     throw new Error("Property ID is required.");
   }
 
@@ -221,107 +199,91 @@ export async function createRoomRateAction(formData: FormData) {
   const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("property_id")
-    .eq("property_id", propertyId)
+    .eq("property_id", normalizedPropertyId)
     .maybeSingle();
 
   if (propertyError || !property) {
     logRoomRateError(
       "Failed to load property before room creation",
       propertyError ?? {},
-      { propertyId },
+      { propertyId: normalizedPropertyId },
     );
-    redirect(`/admin/properties/${propertyId}?roomError=1`);
+    redirect(`/admin/properties/${normalizedPropertyId}?roomError=1`);
   }
 
-  const [
-    { data: highestRoomRate, error: highestError },
-    { data: propertyRoomRate },
-    { data: anyRoomRate },
-  ] = await Promise.all([
-    supabase
-      .from("room_rates")
-      .select("room_rate_id")
-      .eq("property_id", propertyId)
-      .order("room_rate_id", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-
-    supabase
-      .from("room_rates")
-      .select("*")
-      .eq("property_id", propertyId)
-      .limit(1)
-      .maybeSingle(),
-
-    supabase.from("room_rates").select("*").limit(1).maybeSingle(),
-  ]);
+  const { data: highestRoomRate, error: highestError } = await supabase
+    .from("room_rates")
+    .select("room_rate_id")
+    .eq("property_id", normalizedPropertyId)
+    .order("room_rate_id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (highestError) {
     logRoomRateError("Failed to load highest room rate ID", highestError, {
-      propertyId,
+      propertyId: normalizedPropertyId,
     });
-    redirect(`/admin/properties/${propertyId}?roomError=1`);
+    redirect(`/admin/properties/${normalizedPropertyId}?roomError=1`);
   }
-
-  const template = (propertyRoomRate ??
-    anyRoomRate ??
-    BLANK_ROOM_RATE_TEMPLATE) as Record<string, unknown>;
 
   let nextRoomRateId: string;
 
   try {
     nextRoomRateId = getNextRoomRateIdForProperty(
-      propertyId,
+      normalizedPropertyId,
       highestRoomRate?.room_rate_id,
     );
   } catch (error) {
     console.error("Failed to generate room rate ID:", {
-      propertyId,
+      propertyId: normalizedPropertyId,
       highestRoomRateId: highestRoomRate?.room_rate_id ?? null,
       message: error instanceof Error ? error.message : String(error),
     });
-    redirect(`/admin/properties/${propertyId}?roomError=1`);
+    redirect(`/admin/properties/${normalizedPropertyId}?roomError=1`);
   }
 
-  let insertValues: RoomRateValues;
+  let formValues: RoomRateValues;
 
   try {
-    insertValues = parseRoomRateInsert(template, formData);
+    formValues = parseRoomRateFormData(formData);
   } catch (error) {
     console.error("Failed to parse new room rate form:", {
-      propertyId,
+      propertyId: normalizedPropertyId,
       message: error instanceof Error ? error.message : String(error),
     });
-    redirect(`/admin/properties/${propertyId}?roomError=1`);
+    redirect(`/admin/properties/${normalizedPropertyId}?roomError=1`);
   }
 
-  const insert: RoomRateValues = {
-    property_id: propertyId,
-    room_rate_id: nextRoomRateId,
-    ...insertValues,
-    record_status: insertValues.record_status ?? "active",
-  };
+  const insert = buildRoomRateInsertPayload(
+    normalizedPropertyId,
+    nextRoomRateId,
+    formValues,
+  );
 
   const { error: insertError } = await supabase.from("room_rates").insert(insert);
 
   if (insertError) {
     logRoomRateError("Failed to create room rate", insertError, {
-      propertyId,
+      propertyId: normalizedPropertyId,
       roomRateId: nextRoomRateId,
+      insertPayload: insert,
     });
-    redirect(`/admin/properties/${propertyId}?roomError=1`);
+    redirect(`/admin/properties/${normalizedPropertyId}?roomError=1`);
   }
 
-  revalidatePropertyPaths(propertyId);
+  revalidatePropertyPaths(normalizedPropertyId);
 
-  redirect(`/admin/properties/${propertyId}?roomCreated=1`);
+  redirect(`/admin/properties/${normalizedPropertyId}?roomCreated=1`);
 }
 
-export async function deleteRoomRateAction(formData: FormData) {
-  const propertyId = String(formData.get("property_id") ?? "").trim();
+export async function deleteRoomRateAction(
+  propertyId: string,
+  formData: FormData,
+) {
+  const normalizedPropertyId = propertyId.trim();
   const roomRateId = String(formData.get("room_rate_id") ?? "").trim();
 
-  if (!propertyId) {
+  if (!normalizedPropertyId) {
     throw new Error("Property ID is required.");
   }
 
@@ -335,17 +297,17 @@ export async function deleteRoomRateAction(formData: FormData) {
     .from("room_rates")
     .delete()
     .eq("room_rate_id", roomRateId)
-    .eq("property_id", propertyId);
+    .eq("property_id", normalizedPropertyId);
 
   if (deleteError) {
     logRoomRateError("Failed to delete room rate", deleteError, {
-      propertyId,
+      propertyId: normalizedPropertyId,
       roomRateId,
     });
     throw new Error("Room rate deletion failed.");
   }
 
-  revalidatePropertyPaths(propertyId);
+  revalidatePropertyPaths(normalizedPropertyId);
 
-  redirect(`/admin/properties/${propertyId}?roomDeleted=1`);
+  redirect(`/admin/properties/${normalizedPropertyId}?roomDeleted=1`);
 }

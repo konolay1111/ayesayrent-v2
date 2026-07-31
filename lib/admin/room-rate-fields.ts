@@ -1,26 +1,19 @@
-export const BLANK_ROOM_RATE_TEMPLATE: Record<string, unknown> = {
-  room_type: "",
-  monthly_rent_thb: 0,
-  size_sqm: null,
-  record_status: "active",
-  advance_payment_raw: null,
-  contract_options_raw: null,
-  daily_rent_raw: null,
-  data_quality_status: null,
-  deposit_amount_thb: null,
-  deposit_months_raw: null,
-  extra_details_raw: null,
-  floor_options_raw: null,
-  source_property_reference: null,
-  variant_pet_policy: null,
-};
+import {
+  ROOM_RATE_ENUM_DEFAULTS,
+  ROOM_RATE_FORM_FIELDS,
+  ROOM_RATE_PROTECTED_FIELDS,
+} from "@/lib/admin/room-rate-schema";
 
-const protectedRoomFields = new Set([
-  "room_rate_id",
-  "property_id",
-  "created_at",
-  "updated_at",
-]);
+export const BLANK_ROOM_RATE_TEMPLATE: Record<string, unknown> =
+  Object.fromEntries(
+    ROOM_RATE_FORM_FIELDS.map((fieldName) => {
+      if (fieldName in ROOM_RATE_ENUM_DEFAULTS) {
+        return [fieldName, ROOM_RATE_ENUM_DEFAULTS[fieldName]];
+      }
+
+      return [fieldName, null];
+    }),
+  );
 
 export function buildBlankRoomRateTemplate(
   source: Record<string, unknown> | null,
@@ -31,29 +24,17 @@ export function buildBlankRoomRateTemplate(
 
   const blank: Record<string, unknown> = {};
 
-  for (const fieldName of Object.keys(source)) {
-    if (protectedRoomFields.has(fieldName)) {
+  for (const fieldName of ROOM_RATE_FORM_FIELDS) {
+    if (ROOM_RATE_PROTECTED_FIELDS.has(fieldName)) {
       continue;
     }
 
-    const value = source[fieldName];
-
-    if (fieldName === "record_status") {
-      blank[fieldName] = "active";
+    if (fieldName in ROOM_RATE_ENUM_DEFAULTS) {
+      blank[fieldName] = ROOM_RATE_ENUM_DEFAULTS[fieldName];
       continue;
     }
 
-    if (typeof value === "boolean") {
-      blank[fieldName] = false;
-    } else if (typeof value === "number") {
-      blank[fieldName] = 0;
-    } else {
-      blank[fieldName] = null;
-    }
-  }
-
-  if (!blank.record_status) {
-    blank.record_status = "active";
+    blank[fieldName] = null;
   }
 
   return blank;

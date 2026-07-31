@@ -5,6 +5,7 @@ import {
   deleteRoomRateAction,
   updateRoomRateAction,
 } from "@/app/admin/room-rate-actions";
+import { isRoomRateNumericField } from "@/lib/admin/room-rate-schema";
 
 const protectedRoomFields = new Set([
   "room_rate_id",
@@ -69,8 +70,13 @@ export function RoomRateCard({
       </summary>
 
       <div className="p-5">
-        <form action={isNew ? createRoomRateAction : updateRoomRateAction}>
-          <input type="hidden" name="property_id" value={propertyId} />
+        <form
+          action={
+            isNew
+              ? createRoomRateAction.bind(null, propertyId)
+              : updateRoomRateAction.bind(null, propertyId)
+          }
+        >
           {!isNew ? (
             <input
               type="hidden"
@@ -110,8 +116,10 @@ export function RoomRateCard({
         </form>
 
         {!isNew ? (
-          <form action={deleteRoomRateAction} className="mt-3 flex justify-end">
-            <input type="hidden" name="property_id" value={propertyId} />
+          <form
+            action={deleteRoomRateAction.bind(null, propertyId)}
+            className="mt-3 flex justify-end"
+          >
             <input
               type="hidden"
               name="room_rate_id"
@@ -142,7 +150,7 @@ function RoomRateField({
 }) {
   const isProtected = protectedRoomFields.has(fieldName);
   const isBoolean = typeof value === "boolean";
-  const isNumber = typeof value === "number";
+  const isNumber = isRoomRateNumericField(fieldName);
 
   const isLongText =
     fieldName.includes("details") ||
