@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { BLANK_ROOM_RATE_TEMPLATE } from "@/lib/admin/room-rate-fields";
 import { requireAdmin } from "@/lib/supabase/server";
 
 const protectedRoomRateFields = new Set([
@@ -12,6 +13,27 @@ const protectedRoomRateFields = new Set([
 ]);
 
 type RoomRateValues = Record<string, string | number | boolean | null>;
+
+type SupabaseErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
+function logRoomRateError(
+  context: string,
+  error: SupabaseErrorLike,
+  metadata?: Record<string, unknown>,
+) {
+  console.error(context, {
+    message: error.message ?? null,
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    ...metadata,
+  });
+}
 
 function revalidatePropertyPaths(propertyId: string) {
   revalidatePath("/admin");
@@ -49,6 +71,47 @@ function getNextRoomRateId(
   throw new Error("Could not generate the next room rate ID.");
 }
 
+function getNextRoomRateIdForProperty(
+  propertyId: string,
+  highestId: string | number | null | undefined,
+): string {
+  if (highestId === null || highestId === undefined) {
+    return `${propertyId}-RATE-001`;
+  }
+
+  return String(getNextRoomRateId(highestId));
+}
+
+function parseFieldValue(
+  fieldName: string,
+  currentValue: unknown,
+  rawValue: string,
+): string | number | boolean | null {
+  if (rawValue === "") {
+    if (fieldName === "record_status") {
+      return "active";
+    }
+
+    return null;
+  }
+
+  if (typeof currentValue === "boolean") {
+    return rawValue === "true";
+  }
+
+  if (typeof currentValue === "number") {
+    const numericValue = Number(rawValue);
+
+    if (Number.isNaN(numericValue)) {
+      throw new Error(`${fieldName} must be a valid number.`);
+    }
+
+    return numericValue;
+  }
+
+  return rawValue;
+}
+
 function parseRoomRateUpdates(
   currentRoomRate: Record<string, unknown>,
   formData: FormData,
@@ -65,32 +128,35 @@ function parseRoomRateUpdates(
     }
 
     const rawValue = String(formData.get(fieldName) ?? "").trim();
-
-    if (rawValue === "") {
-      updates[fieldName] = null;
-      continue;
-    }
-
-    if (typeof currentValue === "boolean") {
-      updates[fieldName] = rawValue === "true";
-      continue;
-    }
-
-    if (typeof currentValue === "number") {
-      const numericValue = Number(rawValue);
-
-      if (Number.isNaN(numericValue)) {
-        throw new Error(`${fieldName} must be a valid number.`);
-      }
-
-      updates[fieldName] = numericValue;
-      continue;
-    }
-
-    updates[fieldName] = rawValue;
+    updates[fieldName] = parseFieldValue(fieldName, currentValue, rawValue);
   }
 
   return updates;
+}
+
+function parseRoomRateInsert(
+  template: Record<string, unknown>,
+  formData: FormData,
+): RoomRateValues {
+  const insert: RoomRateValues = {};
+
+  for (const [fieldName, currentValue] of Object.entries(template)) {
+    if (protectedRoomRateFields.has(fieldName)) {
+      continue;
+    }
+
+    const rawValue = formData.has(fieldName)
+      ? String(formData.get(fieldName) ?? "").trim()
+      : "";
+
+    insert[fieldName] = parseFieldValue(fieldName, currentValue, rawValue);
+  }
+
+  if (!insert.record_status) {
+    insert.record_status = "active";
+  }
+
+  return insert;
 }
 
 export async function updateRoomRateAction(formData: FormData) {
@@ -115,7 +181,10 @@ export async function updateRoomRateAction(formData: FormData) {
     .single();
 
   if (loadError || !currentRoomRate) {
-    console.error("Failed to load room rate before update:", loadError);
+    logRoomRateError("Failed to load room rate before update", loadError ?? {}, {
+      propertyId,
+      roomRateId,
+    });
     throw new Error("Room rate could not be loaded.");
   }
 
@@ -128,7 +197,10 @@ export async function updateRoomRateAction(formData: FormData) {
     .eq("property_id", propertyId);
 
   if (updateError) {
-    console.error("Failed to update room rate:", updateError);
+    logRoomRateError("Failed to update room rate", updateError, {
+      propertyId,
+      roomRateId,
+    });
     throw new Error("Room rate update failed.");
   }
 
@@ -153,13 +225,18 @@ export async function createRoomRateAction(formData: FormData) {
     .maybeSingle();
 
   if (propertyError || !property) {
-    console.error("Failed to load property before room creation:", propertyError);
-    throw new Error("Property could not be loaded.");
+    logRoomRateError(
+      "Failed to load property before room creation",
+      propertyError ?? {},
+      { propertyId },
+    );
+    redirect(`/admin/properties/${propertyId}?roomError=1`);
   }
 
   const [
     { data: highestRoomRate, error: highestError },
     { data: propertyRoomRate },
+    { data: anyRoomRate },
   ] = await Promise.all([
     supabase
       .from("room_rates")
@@ -175,53 +252,64 @@ export async function createRoomRateAction(formData: FormData) {
       .eq("property_id", propertyId)
       .limit(1)
       .maybeSingle(),
+
+    supabase.from("room_rates").select("*").limit(1).maybeSingle(),
   ]);
 
   if (highestError) {
-    console.error("Failed to load highest room rate ID:", highestError);
-    throw new Error("Room rate ID could not be generated.");
+    logRoomRateError("Failed to load highest room rate ID", highestError, {
+      propertyId,
+    });
+    redirect(`/admin/properties/${propertyId}?roomError=1`);
   }
 
-  let template = propertyRoomRate;
+  const template = (propertyRoomRate ??
+    anyRoomRate ??
+    BLANK_ROOM_RATE_TEMPLATE) as Record<string, unknown>;
 
-  if (!template) {
-    const { data: anyRoomRate } = await supabase
-      .from("room_rates")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+  let nextRoomRateId: string;
 
-    template = anyRoomRate;
+  try {
+    nextRoomRateId = getNextRoomRateIdForProperty(
+      propertyId,
+      highestRoomRate?.room_rate_id,
+    );
+  } catch (error) {
+    console.error("Failed to generate room rate ID:", {
+      propertyId,
+      highestRoomRateId: highestRoomRate?.room_rate_id ?? null,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    redirect(`/admin/properties/${propertyId}?roomError=1`);
   }
 
-  const nextRoomRateId = getNextRoomRateId(highestRoomRate?.room_rate_id);
+  let insertValues: RoomRateValues;
+
+  try {
+    insertValues = parseRoomRateInsert(template, formData);
+  } catch (error) {
+    console.error("Failed to parse new room rate form:", {
+      propertyId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    redirect(`/admin/properties/${propertyId}?roomError=1`);
+  }
 
   const insert: RoomRateValues = {
     property_id: propertyId,
     room_rate_id: nextRoomRateId,
+    ...insertValues,
+    record_status: insertValues.record_status ?? "active",
   };
-
-  if (template) {
-    for (const [fieldName, value] of Object.entries(template)) {
-      if (protectedRoomRateFields.has(fieldName)) {
-        continue;
-      }
-
-      if (typeof value === "boolean") {
-        insert[fieldName] = false;
-      } else if (typeof value === "number") {
-        insert[fieldName] = 0;
-      } else {
-        insert[fieldName] = null;
-      }
-    }
-  }
 
   const { error: insertError } = await supabase.from("room_rates").insert(insert);
 
   if (insertError) {
-    console.error("Failed to create room rate:", insertError);
-    throw new Error("Room rate creation failed.");
+    logRoomRateError("Failed to create room rate", insertError, {
+      propertyId,
+      roomRateId: nextRoomRateId,
+    });
+    redirect(`/admin/properties/${propertyId}?roomError=1`);
   }
 
   revalidatePropertyPaths(propertyId);
@@ -250,7 +338,10 @@ export async function deleteRoomRateAction(formData: FormData) {
     .eq("property_id", propertyId);
 
   if (deleteError) {
-    console.error("Failed to delete room rate:", deleteError);
+    logRoomRateError("Failed to delete room rate", deleteError, {
+      propertyId,
+      roomRateId,
+    });
     throw new Error("Room rate deletion failed.");
   }
 

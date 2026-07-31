@@ -4,11 +4,6 @@ import { updatePropertyAction } from "@/app/admin/actions";
 import { updateFeeAction } from "@/app/admin/fee-actions";
 import { updateNearbyAction } from "@/app/admin/nearby-actions";
 import {
-  createRoomRateAction,
-  deleteRoomRateAction,
-  updateRoomRateAction,
-} from "@/app/admin/room-rate-actions";
-import {
   PropertyPhotosSection,
   type PropertyPhotoView,
 } from "@/components/admin/PropertyPhotosSection";
@@ -16,6 +11,8 @@ import {
   AdminHeader,
   AdminPageHeading,
 } from "@/components/admin/AdminHeader";
+import { buildBlankRoomRateTemplate } from "@/lib/admin/room-rate-fields";
+import { RoomRatesSection } from "@/components/admin/RoomRatesSection";
 import {
   CollapsibleSection,
   PropertySection,
@@ -39,6 +36,7 @@ type PropertyDetailsPageProps = {
     roomSaved?: string;
     roomCreated?: string;
     roomDeleted?: string;
+    roomError?: string;
     amenitiesSaved?: string;
     feesSaved?: string;
     nearbySaved?: string;
@@ -54,13 +52,6 @@ type DataRecord = Record<string, unknown>;
 const protectedPropertyFields = new Set([
   "property_id",
   "id",
-  "created_at",
-  "updated_at",
-]);
-
-const protectedRoomFields = new Set([
-  "room_rate_id",
-  "property_id",
   "created_at",
   "updated_at",
 ]);
@@ -153,6 +144,7 @@ export default async function PropertyDetailsPage({
     roomSaved,
     roomCreated,
     roomDeleted,
+    roomError,
     amenitiesSaved,
     feesSaved,
     nearbySaved,
@@ -281,6 +273,9 @@ export default async function PropertyDetailsPage({
 
   const propertyIdValue = String(property.property_id);
   const groupedPropertyFields = groupPropertyFields(property);
+  const blankRoomTemplate = buildBlankRoomRateTemplate(
+    (roomRates[0] as DataRecord | undefined) ?? null,
+  );
 
   return (
     <div className="min-h-full bg-white font-sans text-zinc-800">
@@ -359,7 +354,8 @@ export default async function PropertyDetailsPage({
         banner={
           roomSaved === "1" ||
           roomCreated === "1" ||
-          roomDeleted === "1" ? (
+          roomDeleted === "1" ||
+          roomError === "1" ? (
             <div className="mb-4 space-y-3">
               {roomSaved === "1" ? (
                 <SuccessBanner message="Room rate saved successfully." />
@@ -370,37 +366,21 @@ export default async function PropertyDetailsPage({
               {roomDeleted === "1" ? (
                 <SuccessBanner message="Room rate deleted successfully." />
               ) : null}
+              {roomError === "1" ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+                  Room rate could not be created. Check required fields and try
+                  again.
+                </div>
+              ) : null}
             </div>
           ) : null
         }
-        actions={
-          <form action={createRoomRateAction}>
-            <input type="hidden" name="property_id" value={propertyIdValue} />
-            <button
-              type="submit"
-              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
-            >
-              + Add New Room
-            </button>
-          </form>
-        }
       >
-        {roomRates.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
-            <p className="text-gray-500">No room rates found.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {roomRates.map((room, index) => (
-              <RoomRateCard
-                key={String(room.room_rate_id ?? index)}
-                room={room}
-                roomNumber={index + 1}
-                propertyId={propertyIdValue}
-              />
-            ))}
-          </div>
-        )}
+        <RoomRatesSection
+          propertyId={propertyIdValue}
+          roomRates={roomRates}
+          blankRoomTemplate={blankRoomTemplate}
+        />
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -540,163 +520,6 @@ function PropertyField({
           defaultValue={inputValue(value)}
           disabled={isProtected}
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 disabled:bg-gray-100 disabled:text-gray-500"
-        />
-      )}
-
-      {isProtected && (
-        <p className="mt-1 text-xs text-gray-500">
-          This system field cannot be changed.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function RoomRateCard({
-  room,
-  roomNumber,
-  propertyId,
-}: {
-  room: DataRecord;
-  roomNumber: number;
-  propertyId: string;
-}) {
-  const roomTitle =
-    room.room_type && String(room.room_type).trim()
-      ? String(room.room_type)
-      : `Room ${roomNumber}`;
-
-  return (
-    <details
-      open
-      className="rounded-xl border border-gray-200 bg-gray-50"
-    >
-      <summary className="flex cursor-pointer list-none flex-col gap-3 border-b border-gray-200 p-5 marker:content-none sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
-        <div className="min-w-0">
-          <h3 className="text-lg font-semibold text-gray-900">{roomTitle}</h3>
-          <p className="mt-1 text-sm text-gray-600">
-            {formatRentThb(room.monthly_rent_thb)} ·{" "}
-            {formatSizeSqm(room.size_sqm)}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Room Rate ID: {displayValue(room.room_rate_id)}
-          </p>
-        </div>
-
-        <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
-          {displayValue(room.record_status)}
-        </span>
-      </summary>
-
-      <div className="p-5">
-        <form action={updateRoomRateAction}>
-          <input type="hidden" name="property_id" value={propertyId} />
-          <input
-            type="hidden"
-            name="room_rate_id"
-            value={String(room.room_rate_id ?? "")}
-          />
-
-          <div className="grid gap-5 md:grid-cols-2">
-            {Object.entries(room).map(([key, value]) => (
-              <RoomRateField
-                key={key}
-                roomRateId={String(room.room_rate_id ?? roomNumber)}
-                fieldName={key}
-                value={value}
-              />
-            ))}
-          </div>
-
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-emerald-700 px-5 py-2.5 font-semibold text-white hover:bg-emerald-800"
-            >
-              Save Room
-            </button>
-          </div>
-        </form>
-
-        <form action={deleteRoomRateAction} className="mt-3 flex justify-end">
-          <input type="hidden" name="property_id" value={propertyId} />
-          <input
-            type="hidden"
-            name="room_rate_id"
-            value={String(room.room_rate_id ?? "")}
-          />
-
-          <button
-            type="submit"
-            className="rounded-lg border border-red-300 bg-white px-5 py-2.5 font-semibold text-red-700 hover:bg-red-50"
-          >
-            Delete Room
-          </button>
-        </form>
-      </div>
-    </details>
-  );
-}
-
-function RoomRateField({
-  roomRateId,
-  fieldName,
-  value,
-}: {
-  roomRateId: string;
-  fieldName: string;
-  value: unknown;
-}) {
-  const isProtected = protectedRoomFields.has(fieldName);
-  const isBoolean = typeof value === "boolean";
-  const isNumber = typeof value === "number";
-
-  const isLongText =
-    fieldName.includes("details") ||
-    fieldName.includes("options") ||
-    fieldName.includes("policy") ||
-    fieldName.includes("note");
-
-  const inputId = `room-${roomRateId}-${fieldName}`;
-
-  return (
-    <div>
-      <label
-        htmlFor={inputId}
-        className="mb-2 block text-sm font-semibold text-gray-700"
-      >
-        {formatLabel(fieldName)}
-      </label>
-
-      {isBoolean ? (
-        <select
-          id={inputId}
-          name={fieldName}
-          defaultValue={value ? "true" : "false"}
-          disabled={isProtected}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-600 disabled:bg-gray-100 disabled:text-gray-500"
-        >
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-      ) : isLongText ? (
-        <textarea
-          id={inputId}
-          name={fieldName}
-          defaultValue={inputValue(value)}
-          disabled={isProtected}
-          rows={3}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-600 disabled:bg-gray-100 disabled:text-gray-500"
-        />
-      ) : (
-        <input
-          id={inputId}
-          name={fieldName}
-          type={isNumber ? "number" : "text"}
-          step={isNumber ? "any" : undefined}
-          defaultValue={inputValue(value)}
-          disabled={isProtected}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-600 disabled:bg-gray-100 disabled:text-gray-500"
         />
       )}
 
@@ -1046,28 +869,6 @@ function groupPropertyFields(property: DataRecord) {
   }
 
   return groups;
-}
-
-function formatRentThb(value: unknown) {
-  if (value === null || value === undefined || value === "") {
-    return "Rent -";
-  }
-
-  const numericValue = Number(value);
-
-  if (Number.isNaN(numericValue)) {
-    return `Rent ${String(value)}`;
-  }
-
-  return `฿${numericValue.toLocaleString()} / month`;
-}
-
-function formatSizeSqm(value: unknown) {
-  if (value === null || value === undefined || value === "") {
-    return "Size -";
-  }
-
-  return `${String(value)} sqm`;
 }
 
 function formatLabel(value: string) {
