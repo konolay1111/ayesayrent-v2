@@ -1,74 +1,43 @@
+import { getServerLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translations";
 import { SectionHeading } from "./SectionHeading";
+import { publicCardClass, publicContainerClass, publicSectionClass, publicStaggerItemClass } from "@/lib/public-ui";
 
-const steps = [
-  {
-    step: "1",
-    titleMm: "အခန်းရှာပါ",
-    titleEn: "Search apartments",
-    descMm:
-      "ဧရိယာ၊ BTS/MRT၊ ငှားရမ်းခနှင့် အခန်းအမျိုးအစားဖြင့် သင့်လိုအပ်ချက်နှင့် ကိုက်ညီသော အခန်းများကို ရှာပါ။",
-    descEn: "Filter by area, BTS/MRT station, budget, and room type.",
-  },
-  {
-    step: "2",
-    titleMm: "ပိုင်ဆိုင်မှု ကုဒ်ရွေးပါ",
-    titleEn: "Select property codes",
-    descMm:
-      "သင့်စိတ်ဝင်စားသော အခန်းများ၏ ပိုင်ဆိုင်မှု ကုဒ်များကို ရွေးချယ်ပါ။",
-    descEn: "Choose the property codes of apartments that interest you.",
-  },
-  {
-    step: "3",
-    titleMm: "ရရှိနိုင်မှု အတည်ပြုပါ",
-    titleEn: "Confirm availability",
-    descMm:
-      "AyesayRent သည် ပိုင်ဆိုင်ရှင်နှင့် ဆက်သွယ်၍ ရရှိနိုင်မှုကို အတည်ပြုပေးပါသည်။",
-    descEn: "AyesayRent confirms availability with the property owner.",
-  },
-  {
-    step: "4",
-    titleMm: "ကြည့်ရှုရန် စီစဉ်ပါ",
-    titleEn: "Arrange a viewing",
-    descMm:
-      "ရရှိနိုင်မှု အတည်ပြုပြီးနောက် ကြည့်ရှုရန် ရက်ချိန်ကို စီစဉ်ပေးပါသည်။",
-    descEn: "Once confirmed, we arrange a convenient viewing appointment.",
-  },
-];
+const stepKeys = [
+  { step: "1", title: "how.step1.title", desc: "how.step1.desc" },
+  { step: "2", title: "how.step2.title", desc: "how.step2.desc" },
+  { step: "3", title: "how.step3.title", desc: "how.step3.desc" },
+  { step: "4", title: "how.step4.title", desc: "how.step4.desc" },
+  { step: "5", title: "how.step5.title", desc: "how.step5.desc" },
+] as const;
 
-export function HowItWorks() {
+export async function HowItWorks() {
+  const locale = await getServerLocale();
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+
   return (
-    <section
-      id="how-it-works"
-      className="bg-zinc-50/80 px-4 py-20 sm:px-6 lg:px-8"
-    >
-      <div className="mx-auto max-w-6xl">
+    <section id="how-it-works" className={`${publicSectionClass} bg-card`}>
+      <div className={publicContainerClass}>
         <SectionHeading
-          myanmar="လုပ်ဆောင်ပုံ"
-          english="How It Works"
-          descriptionMm="AyesayRent နှင့် အခန်းရှာဖွေခြင်း လွယ်ကူသော ၄ ချက်စီလုပ်ဆောင်ပါ"
-          description="Four simple steps to find your apartment with AyesayRent"
+          title={t("how.title")}
+          description={t("how.subtitle")}
         />
 
-        <ol className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((item) => (
+        <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {stepKeys.map((item) => (
             <li
               key={item.step}
-              className="relative rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm"
+              className={`${publicCardClass} ${publicStaggerItemClass} p-6`}
+              style={{ animationDelay: `${Number(item.step) * 80}ms` }}
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                 {item.step}
               </span>
-              <h3 className="mt-4 text-lg font-semibold text-zinc-900">
-                {item.titleMm}
+              <h3 className="mt-4 text-base font-semibold text-foreground">
+                {t(item.title)}
               </h3>
-              <p className="mt-0.5 text-sm font-medium text-emerald-600">
-                {item.titleEn}
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-zinc-600">
-                {item.descMm}
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                {item.descEn}
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {t(item.desc)}
               </p>
             </li>
           ))}

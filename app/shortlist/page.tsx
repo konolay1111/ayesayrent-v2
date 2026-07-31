@@ -1,47 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { BilingualLabel } from "@/components/BilingualLabel";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { loadShortlistSummariesAction } from "@/app/shortlist/actions";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { ShortlistInquiryForm } from "@/components/shortlist/ShortlistInquiryForm";
+import { EmptyIllustration } from "@/components/ui/EmptyIllustration";
+import { Modal } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
+import { getButtonClassName } from "@/components/ui/Button";
+import { useTranslation } from "@/lib/i18n/locale-provider";
+import type { InquiryListingSummary } from "@/lib/public-inquiry/queries";
+import { formatRentThb } from "@/lib/public-search/format";
 import {
   SHORTLIST_CHANGE_EVENT,
+  addToShortlist,
   readShortlist,
   removeFromShortlist,
 } from "@/lib/shortlist";
-import { getSampleProperty } from "@/lib/sample-properties";
-
-type FormData = {
-  customerName: string;
-  phone: string;
-  contact: string;
-  preferredArea: string;
-  budget: string;
-  moveInDate: string;
-  occupants: string;
-  notes: string;
-  availabilityAck: boolean;
-  viewingPolicyAck: boolean;
-};
-
-const initialFormData: FormData = {
-  customerName: "",
-  phone: "",
-  contact: "",
-  preferredArea: "",
-  budget: "",
-  moveInDate: "",
-  occupants: "",
-  notes: "",
-  availabilityAck: false,
-  viewingPolicyAck: false,
-};
+import {
+  publicBadgeClass,
+  publicCardClass,
+  publicContainerClass,
+  publicDisclaimerClass,
+  publicPageClass,
+  typeH1Class,
+  typeSmallClass,
+} from "@/lib/public-ui";
+import { cn } from "@/lib/cn";
 
 export default function ShortlistPage() {
+  const { t } = useTranslation();
+  const toast = useToast();
   const [codes, setCodes] = useState<string[]>([]);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
-  const [submittedCodes, setSubmittedCodes] = useState<string[] | null>(null);
+  const [summaries, setSummaries] = useState<
+    Map<string, InquiryListingSummary | null>
+  >(new Map());
+  const [summariesLoading, setSummariesLoading] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [removeCode, setRemoveCode] = useState<string | null>(null);
+  const addedViaUrl = useRef(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const syncShortlist = useCallback(() => {
     setCodes(readShortlist());
@@ -60,191 +62,173 @@ export default function ShortlistPage() {
     };
   }, [syncShortlist]);
 
-  const handleRemove = (code: string) => {
-    removeFromShortlist(code);
-  };
+  useEffect(() => {
+    const propertyId = searchParams.get("add")?.trim();
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (
-      codes.length === 0 ||
-      !formData.availabilityAck ||
-      !formData.viewingPolicyAck
-    ) {
+    if (!propertyId || addedViaUrl.current) {
       return;
     }
 
-    setSubmittedCodes([...codes]);
+    addToShortlist(propertyId);
+    addedViaUrl.current = true;
+    toast.success(t("toast.addedShortlist"));
+    router.replace("/shortlist", { scroll: false });
+  }, [searchParams, router, t, toast]);
+
+  useEffect(() => {
+    if (codes.length === 0) {
+      setSummaries(new Map());
+      setSummariesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSummariesLoading(true);
+
+    loadShortlistSummariesAction(codes)
+      .then((results) => {
+        if (cancelled) {
+          return;
+        }
+
+        setSummaries(
+          new Map(results.map((item) => [item.propertyId, item.summary])),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSummariesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [codes]);
+
+  const handleConfirmRemove = () => {
+    if (removeCode) {
+      removeFromShortlist(removeCode);
+      toast.success(t("toast.removedShortlist"));
+      setRemoveCode(null);
+    }
   };
 
-  const inputClassName =
-    "h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
+  const handleClearAll = () => {
+    codes.forEach((code) => removeFromShortlist(code));
+    setClearOpen(false);
+    toast.success(t("toast.removedShortlist"));
+  };
 
   return (
-    <div className="flex min-h-full flex-col bg-white font-sans text-zinc-800">
+    <div className={publicPageClass}>
       <Header />
 
       <main className="flex-1">
-        <section className="border-b border-zinc-100 bg-gradient-to-b from-emerald-50/60 to-white px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
-          <div className="mx-auto max-w-6xl">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              ရွေးချယ်ထားသော အခန်းများ
-            </h1>
-            <p className="mt-1 text-sm font-medium text-emerald-600">
-              Your Shortlist
-            </p>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              Select the apartments you want AyesayRent to check with the
-              property owners.
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              AyesayRent will contact each owner and confirm availability before
-              sharing full details.
+        <section className="border-b border-border bg-card px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+          <div className={publicContainerClass}>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h1 className={typeH1Class}>{t("shortlist.title")}</h1>
+                <p className="mt-3 text-sm font-medium text-primary">{t("shortlist.subtitle")}</p>
+              </div>
+              {codes.length > 0 ? (
+                <span className={cn(publicBadgeClass, "animate-badge-pop bg-primary text-primary-foreground ring-primary/20")}>
+                  {codes.length} {t("shortlist.itemCount")}
+                </span>
+              ) : null}
+            </div>
+            <p className={`mt-5 max-w-2xl ${typeSmallClass}`}>{t("shortlist.body")}</p>
+            <p className={`mt-5 max-w-2xl ${publicDisclaimerClass}`}>
+              {t("availability.disclaimerShort")}
             </p>
           </div>
         </section>
 
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-          {submittedCodes ? (
-            <section
-              aria-live="polite"
-              className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-6 sm:p-8"
-            >
-              <h2 className="text-lg font-semibold text-emerald-900">
-                တောင်းဆိုမှု အောင်မြင်ပါသည်
+        <div className={`${publicContainerClass} px-4 py-10 sm:px-6 lg:px-8`}>
+          {codes.length === 0 ? (
+            <section className={`${publicCardClass} px-6 py-16 sm:px-10 sm:py-20`}>
+              <EmptyIllustration variant="shortlist" className="mb-8" />
+              <h2 className="text-center text-lg font-semibold text-foreground sm:text-xl">
+                {t("shortlist.empty")}
               </h2>
-              <p className="mt-1 text-sm font-medium text-emerald-700">
-                Availability check request received
+              <p className="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t("shortlist.emptyHint")}
               </p>
-              <p className="mt-4 text-sm leading-relaxed text-emerald-800">
-                AyesayRent will contact the property owners and confirm
-                availability for the following property codes:
-              </p>
-              <ul className="mt-4 flex flex-wrap gap-2">
-                {submittedCodes.map((code) => (
-                  <li
-                    key={code}
-                    className="rounded-lg bg-white px-3 py-1.5 font-mono text-sm font-semibold text-emerald-700 shadow-sm"
-                  >
-                    {code}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-4 text-xs leading-relaxed text-emerald-700/80">
-                Your shortlist has been kept. We will contact you after
-                confirming with each property owner.
-              </p>
-              <Link
-                href="/search"
-                className="mt-6 inline-flex h-11 flex-col items-center justify-center rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-              >
-                <span>အခန်းများ ဆက်ရှာရန်</span>
-                <span className="text-xs font-normal text-emerald-100">
-                  Continue Searching
-                </span>
-              </Link>
-            </section>
-          ) : codes.length === 0 ? (
-            <section className="rounded-2xl border border-zinc-100 bg-zinc-50 px-6 py-16 text-center">
-              <p className="text-lg font-semibold text-zinc-900">
-                ရွေးချယ်ထားသော အခန်း မရှိသေးပါ
-              </p>
-              <p className="mt-2 text-sm text-zinc-500">
-                No properties selected yet.
-              </p>
-              <Link
-                href="/search"
-                className="mt-6 inline-flex h-11 flex-col items-center justify-center rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-              >
-                <span>အခန်းရှာရန်</span>
-                <span className="text-xs font-normal text-emerald-100">
-                  Search Apartments
-                </span>
-              </Link>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link href="/search" className={getButtonClassName("primary", "md")}>
+                  {t("search.submit")}
+                </Link>
+                <Link href="/#how-it-works" className={getButtonClassName("outline", "md")}>
+                  {t("nav.howItWorks")}
+                </Link>
+              </div>
             </section>
           ) : (
             <div className="grid gap-8 lg:grid-cols-5">
-              <section
-                aria-labelledby="shortlist-items-heading"
-                className="space-y-4 lg:col-span-2"
-              >
-                <h2
-                  id="shortlist-items-heading"
-                  className="text-lg font-semibold text-zinc-900"
-                >
-                  <BilingualLabel
-                    myanmar="ရွေးချယ်ထားသော အခန်းများ"
-                    english="Selected Properties"
-                  />
-                </h2>
+              <section aria-labelledby="shortlist-items-heading" className="space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 id="shortlist-items-heading" className="text-lg font-semibold text-foreground">
+                    {t("shortlist.selected")}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setClearOpen(true)}
+                    className="min-h-10 rounded-lg px-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-destructive/25"
+                  >
+                    {t("shortlist.clearAll")}
+                  </button>
+                </div>
 
                 <ul className="space-y-4">
                   {codes.map((code) => {
-                    const property = getSampleProperty(code);
+                    const summary = summaries.get(code);
 
                     return (
-                      <li key={code}>
-                        <article className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm">
-                          <p className="font-mono text-sm font-semibold text-emerald-700">
-                            {code}
+                      <li key={code} className="animate-fade-in-up">
+                        <article className={`${publicCardClass} p-5`}>
+                          <p className="font-mono text-sm font-semibold text-primary">
+                            {summary?.publicReference ?? code}
                           </p>
 
-                          {property ? (
+                          {summary ? (
                             <dl className="mt-4 space-y-2 text-sm">
                               <div className="flex justify-between gap-2">
-                                <dt className="text-zinc-500">
-                                  <BilingualLabel
-                                    myanmar="လစဉ်ငှားရမ်းခ"
-                                    english="Monthly Rent"
-                                  />
-                                </dt>
-                                <dd className="font-medium text-zinc-800">
-                                  {property.rent}
+                                <dt className="text-muted-foreground">{t("shortlist.monthlyRent")}</dt>
+                                <dd className="font-medium text-foreground">
+                                  {formatRentThb(summary.startingMonthlyRent)}
                                 </dd>
                               </div>
                               <div className="flex justify-between gap-2">
-                                <dt className="text-zinc-500">
-                                  <BilingualLabel myanmar="ဧရိယာ" english="Area" />
-                                </dt>
-                                <dd className="text-right font-medium text-zinc-800">
-                                  {property.areaMm} ({property.area})
+                                <dt className="text-muted-foreground">{t("card.area")}</dt>
+                                <dd className="text-right font-medium text-foreground">
+                                  {summary.area ?? "—"}
                                 </dd>
                               </div>
                               <div className="flex justify-between gap-2">
-                                <dt className="text-zinc-500">BTS / MRT</dt>
-                                <dd className="text-right font-medium text-zinc-800">
-                                  {property.transit}
-                                </dd>
-                              </div>
-                              <div className="flex justify-between gap-2">
-                                <dt className="text-zinc-500">
-                                  <BilingualLabel
-                                    myanmar="အခန်းအမျိုးအစား"
-                                    english="Room Type"
-                                  />
-                                </dt>
-                                <dd className="text-right font-medium text-zinc-800">
-                                  {property.roomTypeMm} ({property.roomType})
+                                <dt className="text-muted-foreground">{t("search.station")}</dt>
+                                <dd className="text-right font-medium text-foreground">
+                                  {summary.transitName ?? "—"}
                                 </dd>
                               </div>
                             </dl>
+                          ) : summariesLoading ? (
+                            <div className="mt-4 space-y-2" aria-hidden="true">
+                              <div className="h-4 animate-pulse rounded bg-muted" />
+                              <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
+                            </div>
                           ) : (
-                            <p className="mt-3 text-sm text-zinc-500">
-                              Public listing details will be confirmed by
-                              AyesayRent.
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {t("shortlist.detailsPending")}
                             </p>
                           )}
 
                           <button
                             type="button"
-                            onClick={() => handleRemove(code)}
-                            className="mt-4 inline-flex h-10 w-full flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50 text-sm font-semibold text-red-700 transition-colors hover:border-red-300 hover:bg-red-100"
+                            onClick={() => setRemoveCode(code)}
+                            className={getButtonClassName("destructive", "md", "mt-5 w-full")}
                           >
-                            <span>ဖယ်ရှားရန်</span>
-                            <span className="text-xs font-normal text-red-600/80">
-                              Remove
-                            </span>
+                            {t("shortlist.remove")}
                           </button>
                         </article>
                       </li>
@@ -253,30 +237,24 @@ export default function ShortlistPage() {
                 </ul>
               </section>
 
-              <section
-                aria-labelledby="request-form-heading"
-                className="lg:col-span-3"
-              >
-                <div className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm sm:p-8">
-                  <h2
-                    id="request-form-heading"
-                    className="text-lg font-semibold text-zinc-900"
-                  >
-                    <BilingualLabel
-                      myanmar="အခန်းလွတ် စစ်ဆေးရန် တောင်းဆိုမှု"
-                      english="Availability Request"
-                    />
+              <section aria-labelledby="request-form-heading" className="lg:col-span-3">
+                <div className={`${publicCardClass} p-6 sm:p-8`}>
+                  <h2 id="request-form-heading" className="text-lg font-semibold text-foreground">
+                    {t("shortlist.requestTitle")}
                   </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t("shortlist.requestBody")}
+                  </p>
 
-                  <div className="mt-4 rounded-xl bg-emerald-50/80 px-4 py-3">
-                    <p className="text-sm font-medium text-emerald-900">
-                      Selected property codes
+                  <div className="mt-4 rounded-xl border border-primary/15 bg-secondary px-4 py-3">
+                    <p className="text-sm font-medium text-secondary-foreground">
+                      {t("shortlist.requestCodes")}
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-2">
                       {codes.map((code) => (
                         <li
                           key={code}
-                          className="rounded-lg bg-white px-2.5 py-1 font-mono text-xs font-semibold text-emerald-700"
+                          className="rounded-lg bg-card px-2.5 py-1 font-mono text-xs font-semibold text-primary ring-1 ring-border"
                         >
                           {code}
                         </li>
@@ -284,281 +262,7 @@ export default function ShortlistPage() {
                     </ul>
                   </div>
 
-                  <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1.5 sm:col-span-2">
-                        <label
-                          htmlFor="customer-name"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="အမည်"
-                            english="Customer Name"
-                          />
-                        </label>
-                        <input
-                          id="customer-name"
-                          name="customerName"
-                          type="text"
-                          required
-                          className={inputClassName}
-                          value={formData.customerName}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              customerName: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="phone"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="ဖုန်းနံပါတ်"
-                            english="Phone Number"
-                          />
-                        </label>
-                        <input
-                          id="phone"
-                          name="phone"
-                          type="tel"
-                          required
-                          className={inputClassName}
-                          value={formData.phone}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              phone: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="contact"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="Facebook သို့မဟုတ် LINE"
-                            english="Facebook or LINE Contact"
-                          />
-                        </label>
-                        <input
-                          id="contact"
-                          name="contact"
-                          type="text"
-                          required
-                          className={inputClassName}
-                          value={formData.contact}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              contact: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="preferred-area"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="နှစ်သက်သော ဧရိယာ"
-                            english="Preferred Area"
-                          />
-                        </label>
-                        <input
-                          id="preferred-area"
-                          name="preferredArea"
-                          type="text"
-                          required
-                          className={inputClassName}
-                          value={formData.preferredArea}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              preferredArea: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="budget"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="လစဉ်ဘတ်ဂျက်"
-                            english="Monthly Budget"
-                          />
-                        </label>
-                        <input
-                          id="budget"
-                          name="budget"
-                          type="text"
-                          required
-                          className={inputClassName}
-                          value={formData.budget}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              budget: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="move-in-date"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="နေထိုင်မည့်ရက်"
-                            english="Move-in Date"
-                          />
-                        </label>
-                        <input
-                          id="move-in-date"
-                          name="moveInDate"
-                          type="date"
-                          required
-                          className={inputClassName}
-                          value={formData.moveInDate}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              moveInDate: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label
-                          htmlFor="occupants"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="နေထိုင်မည့်သူ အရေအတွက်"
-                            english="Number of Occupants"
-                          />
-                        </label>
-                        <input
-                          id="occupants"
-                          name="occupants"
-                          type="number"
-                          min={1}
-                          required
-                          className={inputClassName}
-                          value={formData.occupants}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              occupants: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5 sm:col-span-2">
-                        <label
-                          htmlFor="notes"
-                          className="text-sm font-medium text-zinc-700"
-                        >
-                          <BilingualLabel
-                            myanmar="ထပ်ဆောင်း မှတ်ချက်များ"
-                            english="Additional Notes"
-                          />
-                        </label>
-                        <textarea
-                          id="notes"
-                          name="notes"
-                          rows={4}
-                          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                          value={formData.notes}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              notes: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <fieldset className="space-y-4 rounded-xl border border-zinc-100 bg-zinc-50/80 p-4">
-                      <legend className="sr-only">Acknowledgements</legend>
-
-                      <label className="flex cursor-pointer gap-3">
-                        <input
-                          type="checkbox"
-                          required
-                          checked={formData.availabilityAck}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              availabilityAck: event.target.checked,
-                            }))
-                          }
-                          className="mt-1 h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="text-sm leading-relaxed text-zinc-700">
-                          ရွေးချယ်ထားသော အခန်းများ၏ လက်ရှိအခြေအနေကို
-                          AyesayRent မှ ပိုင်ရှင်နှင့် အတည်ပြုရမည်ကို
-                          နားလည်ပါသည်။
-                          <span className="mt-1 block text-xs text-zinc-500">
-                            I understand that AyesayRent must confirm current
-                            availability with each property owner.
-                          </span>
-                        </span>
-                      </label>
-
-                      <label className="flex cursor-pointer gap-3">
-                        <input
-                          type="checkbox"
-                          required
-                          checked={formData.viewingPolicyAck}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              viewingPolicyAck: event.target.checked,
-                            }))
-                          }
-                          className="mt-1 h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="text-sm leading-relaxed text-zinc-700">
-                          အခန်းကြည့်ရှုရန် ရက်ချိန်းအတည်ပြုပြီးနောက်
-                          အခန်းကို ကြည့်ရှုပြီး ကိုယ်ပိုင်အကြောင်းပြချက်ဖြင့်
-                          မငှားပါက သဘောတူထားသော ကြည့်ရှုဝန်ဆောင်ခ
-                          ပေးဆောင်ရမည်ကို နားလည်ပါသည်။
-                          <span className="mt-1 block text-xs text-zinc-500">
-                            I understand that after attending a confirmed
-                            viewing, the agreed viewing service fee applies if I
-                            decide not to rent for personal reasons.
-                          </span>
-                        </span>
-                      </label>
-                    </fieldset>
-
-                    <button
-                      type="submit"
-                      className="inline-flex h-12 w-full flex-col items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 sm:w-auto sm:px-8"
-                    >
-                      <span>အခန်းလွတ် စစ်ဆေးရန် တောင်းဆိုမည်</span>
-                      <span className="text-xs font-normal text-emerald-100">
-                        Request Availability Check
-                      </span>
-                    </button>
-                  </form>
+                  <ShortlistInquiryForm propertyCodes={codes} />
                 </div>
               </section>
             </div>
@@ -567,6 +271,28 @@ export default function ShortlistPage() {
       </main>
 
       <Footer />
+
+      <Modal
+        open={clearOpen}
+        onClose={() => setClearOpen(false)}
+        title={t("modal.clearShortlist.title")}
+        description={t("modal.clearShortlist.body")}
+        confirmLabel={t("modal.confirm")}
+        cancelLabel={t("modal.cancel")}
+        onConfirm={handleClearAll}
+        variant="destructive"
+      />
+
+      <Modal
+        open={removeCode !== null}
+        onClose={() => setRemoveCode(null)}
+        title={t("modal.removeProperty.title")}
+        description={t("modal.removeProperty.body")}
+        confirmLabel={t("modal.confirm")}
+        cancelLabel={t("modal.cancel")}
+        onConfirm={handleConfirmRemove}
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -1,46 +1,77 @@
-export function HeroSection() {
+import Image from "next/image";
+import Link from "next/link";
+import { getServerLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translations";
+import { getButtonClassName } from "@/components/ui/Button";
+import { cn } from "@/lib/cn";
+import {
+  publicContainerClass,
+  publicFadeInClass,
+} from "@/lib/public-ui";
+
+const heroSecondaryButtonClass =
+  "inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-black/25 px-8 text-base font-semibold leading-snug text-white backdrop-blur-sm transition-all duration-200 hover:border-primary hover:bg-black/40 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40 active:scale-[0.98] sm:w-auto sm:min-w-52";
+
+export async function HeroSection() {
+  const locale = await getServerLocale();
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+
   return (
     <section
       id="home"
-      className="relative overflow-hidden bg-gradient-to-b from-emerald-50/80 to-white px-4 pb-24 pt-16 sm:px-6 sm:pt-20 lg:px-8"
+      className="relative isolate min-h-[520px] overflow-hidden sm:min-h-[600px] lg:min-h-[720px] lg:max-h-[760px]"
     >
-      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-emerald-100/60 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-emerald-50 blur-3xl" />
+      <Image
+        src="/hero-bangkok.jpg"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-center"
+      />
 
-      <div className="relative mx-auto max-w-4xl text-center">
-        <h1 className="text-3xl font-bold leading-tight tracking-tight text-zinc-900 sm:text-4xl lg:text-5xl">
-          ထိုင်းနိုင်ငံတွင် သင့်အတွက် သင့်တော်သော အခန်းကို ရှာဖွေပါ
-        </h1>
-        <p className="mt-3 text-base font-medium text-emerald-600 sm:text-lg">
-          Find the Right Apartment in Thailand
-        </p>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-600 sm:text-lg">
-          AyesayRent သည် ထိုင်းနိုင်ငံရှိ မြန်မာလူမျိုးများအတွက်
-          ယုံကြည်စိတ်ချရသော အခန်းငှားဝန်ဆောင်မှု ပေးပါသည်။
-        </p>
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-zinc-500">
-          AyesayRent provides trusted rental assistance for Myanmar people
-          living in Thailand.
-        </p>
-        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <a
-            href="#search"
-            className="inline-flex h-12 w-full flex-col items-center justify-center rounded-xl bg-emerald-600 px-8 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 sm:w-auto"
-          >
-            <span>အခန်းရှာရန်</span>
-            <span className="text-xs font-normal text-emerald-100">
-              Search Apartments
-            </span>
-          </a>
-          <a
-            href="#contact"
-            className="inline-flex h-12 w-full flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white px-8 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 sm:w-auto"
-          >
-            <span>အကြံပေးနှင့် ဆက်သွယ်ရန်</span>
-            <span className="text-xs font-normal text-emerald-600/70">
-              Contact Consultant
-            </span>
-          </a>
+      <div
+        className="absolute inset-0 bg-black/60 dark:bg-black/70"
+        aria-hidden="true"
+      />
+
+      <div
+        className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background via-background/80 to-transparent sm:h-32"
+        aria-hidden="true"
+      />
+
+      <div
+        className={cn(
+          "relative z-10 flex min-h-[520px] items-center sm:min-h-[600px] lg:min-h-[720px] lg:max-h-[760px]",
+          publicFadeInClass,
+        )}
+      >
+        <div
+          className={`${publicContainerClass} w-full px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8 lg:py-24`}
+        >
+          <p className="mx-auto mb-4 max-w-2xl text-xs font-semibold uppercase tracking-wider text-emerald-300">
+            {t("hero.badge")}
+          </p>
+
+          <h1 className="mx-auto max-w-3xl text-3xl font-bold leading-[1.3] tracking-tight text-white sm:text-4xl sm:leading-[1.28] lg:text-5xl lg:leading-[1.22]">
+            {t("hero.title")}
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/85 sm:text-lg sm:leading-8">
+            {t("hero.body")}
+          </p>
+
+          <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link
+              href="/search"
+              className={getButtonClassName("primary", "lg", "w-full sm:w-auto sm:min-w-52")}
+            >
+              {t("hero.ctaSearch")}
+            </Link>
+            <Link href="/#how-it-works" className={heroSecondaryButtonClass}>
+              {t("hero.ctaHowItWorks")}
+            </Link>
+          </div>
         </div>
       </div>
     </section>

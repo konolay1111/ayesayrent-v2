@@ -1,115 +1,104 @@
-import { BilingualLabel } from "./BilingualLabel";
+"use client";
+
+import Link from "next/link";
+import { CompanyLogo } from "@/components/branding/CompanyLogo";
+import { FacebookLink } from "@/components/branding/FacebookLink";
+import { LineLink } from "@/components/branding/LineLink";
+import { IconMenu } from "@/components/icons";
+import { LanguageSwitcher } from "@/components/public/LanguageSwitcher";
+import { MobileShortlistBar } from "@/components/public/MobileShortlistBar";
+import { ThemeToggle } from "@/components/public/ThemeToggle";
+import { ShortlistNavLink } from "@/components/ShortlistNavLink";
+import { getButtonClassName } from "@/components/ui/Button";
+import { useTranslation } from "@/lib/i18n/locale-provider";
+import {
+  publicContainerClass,
+  publicHeaderClass,
+  publicNavLinkClass,
+} from "@/lib/public-ui";
 
 export function Header() {
+  const { t } = useTranslation();
+
   return (
-    <header className="sticky top-0 z-50 border-b border-zinc-100 bg-white/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <a
-          href="#home"
-          className="shrink-0 text-xl font-bold tracking-tight text-emerald-600"
+    <>
+      <header className={publicHeaderClass}>
+        <div
+          className={`${publicContainerClass} flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8`}
         >
-          AyesayRent
-        </a>
+          <CompanyLogo className="shrink-0" />
 
-        <nav
-          className="hidden items-center gap-6 lg:flex"
-          aria-label="Main navigation"
-        >
-          <a
-            href="#home"
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-emerald-600"
-          >
-            <BilingualLabel myanmar="ပင်မ" english="Home" />
-          </a>
-          <a
-            href="#search"
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-emerald-600"
-          >
-            <BilingualLabel myanmar="အခန်းရှာရန်" english="Search" />
-          </a>
-          <a
-            href="#how-it-works"
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-emerald-600"
-          >
-            <BilingualLabel myanmar="လုပ်ဆောင်ပုံ" english="How It Works" />
-          </a>
-          <a
-            href="#contact"
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-emerald-600"
-          >
-            <BilingualLabel myanmar="ဆက်သွယ်ရန်" english="Contact" />
-          </a>
-        </nav>
-
-        <div className="hidden items-center gap-2 lg:flex">
-          <span
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-            aria-current="true"
-          >
-            မြန်မာ
-          </span>
-          <span className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500">
-            English
-          </span>
-        </div>
-
-        <details className="group relative lg:hidden">
-          <summary className="flex cursor-pointer list-none items-center justify-center rounded-lg border border-zinc-200 p-2 [&::-webkit-details-marker]:hidden">
-            <svg
-              className="h-5 w-5 text-zinc-700"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-              />
-            </svg>
-            <span className="sr-only">Open menu</span>
-          </summary>
           <nav
-            className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-100 bg-white py-2 shadow-lg"
-            aria-label="Mobile navigation"
+            className="hidden items-center gap-8 lg:flex"
+            aria-label={t("nav.main")}
           >
-            <a
-              href="#home"
-              className="block px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-emerald-50 hover:text-emerald-600"
-            >
-              <BilingualLabel myanmar="ပင်မ" english="Home" />
-            </a>
-            <a
-              href="#search"
-              className="block px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-emerald-50 hover:text-emerald-600"
-            >
-              <BilingualLabel myanmar="အခန်းရှာရန်" english="Search" />
-            </a>
-            <a
-              href="#how-it-works"
-              className="block px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-emerald-50 hover:text-emerald-600"
-            >
-              <BilingualLabel myanmar="လုပ်ဆောင်ပုံ" english="How It Works" />
-            </a>
-            <a
-              href="#contact"
-              className="block px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-emerald-50 hover:text-emerald-600"
-            >
-              <BilingualLabel myanmar="ဆက်သွယ်ရန်" english="Contact" />
-            </a>
-            <div className="mt-2 flex gap-2 border-t border-zinc-100 px-4 pt-3">
-              <span className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">
-                မြန်မာ
-              </span>
-              <span className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500">
-                English
-              </span>
-            </div>
+            <Link href="/search" className={publicNavLinkClass}>
+              {t("nav.search")}
+            </Link>
+            <Link href="/#how-it-works" className={publicNavLinkClass}>
+              {t("nav.howItWorks")}
+            </Link>
+            <ShortlistNavLink />
           </nav>
-        </details>
-      </div>
-    </header>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <LanguageSwitcher />
+            <ThemeToggle />
+            <Link href="/search" className={getButtonClassName("primary", "sm")}>
+              {t("nav.searchShort")}
+            </Link>
+          </div>
+
+          <details className="group relative lg:hidden">
+            <summary className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-card transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25 [&::-webkit-details-marker]:hidden">
+              <IconMenu size={22} className="text-foreground" />
+              <span className="sr-only">{t("nav.openMenu")}</span>
+            </summary>
+            <nav
+              className="absolute right-0 mt-2 w-72 animate-fade-in rounded-2xl border border-border bg-card py-2 shadow-xl"
+              aria-label={t("nav.main")}
+            >
+              <Link
+                href="/search"
+                className="block px-4 py-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-secondary-foreground"
+              >
+                {t("nav.search")}
+              </Link>
+              <Link
+                href="/#how-it-works"
+                className="block px-4 py-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-secondary-foreground"
+              >
+                {t("nav.howItWorks")}
+              </Link>
+              <div className="px-4 py-3.5">
+                <ShortlistNavLink />
+              </div>
+              <div className="space-y-3 border-t border-border px-4 py-3.5">
+                <FacebookLink
+                  label={t("contact.facebookPage")}
+                  missingHint={t("branding.missingFacebook")}
+                  className="px-1 py-1"
+                />
+                <LineLink
+                  label={t("contact.lineId")}
+                  missingHint={t("branding.missingLineId")}
+                  className="px-1 py-1"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
+                <LanguageSwitcher />
+                <ThemeToggle />
+              </div>
+              <div className="border-t border-border px-4 pt-3 pb-3">
+                <Link href="/search" className={getButtonClassName("primary", "md", "w-full")}>
+                  {t("nav.searchShort")}
+                </Link>
+              </div>
+            </nav>
+          </details>
+        </div>
+      </header>
+      <MobileShortlistBar />
+    </>
   );
 }

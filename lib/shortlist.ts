@@ -45,6 +45,10 @@ export function removeFromShortlist(code: string): void {
   writeShortlist(readShortlist().filter((item) => item !== code));
 }
 
+export function clearShortlist(): void {
+  writeShortlist([]);
+}
+
 export function isInShortlist(code: string): boolean {
   return readShortlist().includes(code);
 }

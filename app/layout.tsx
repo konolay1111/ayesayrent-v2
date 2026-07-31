@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_Myanmar } from "next/font/google";
+import { PublicProviders } from "@/components/public/PublicProviders";
+import { getServerLocale } from "@/lib/i18n/server";
 import "./globals.css";
 
 const notoSansMyanmar = Noto_Sans_Myanmar({
@@ -15,17 +17,25 @@ export const metadata: Metadata = {
     "Trusted apartment rental assistance for Myanmar people in Thailand",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const initialLocale = await getServerLocale();
+
   return (
-    <html lang="en" className="h-full antialiased">
+    <html
+      lang={initialLocale === "my" ? "my" : "en"}
+      className={`h-full antialiased ${initialLocale === "my" ? "my-locale" : ""}`}
+      suppressHydrationWarning
+    >
       <body
         className={`${notoSansMyanmar.variable} flex min-h-full flex-col font-sans`}
       >
-        {children}
+        <PublicProviders initialLocale={initialLocale}>
+          {children}
+        </PublicProviders>
       </body>
     </html>
   );

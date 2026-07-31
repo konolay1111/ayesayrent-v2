@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
+import { IconHeart, IconHeartFilled } from "@/components/icons";
+import { Modal } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
+import { getButtonClassName } from "@/components/ui/Button";
+import { useTranslation } from "@/lib/i18n/locale-provider";
 import {
   SHORTLIST_CHANGE_EVENT,
   addToShortlist,
@@ -13,15 +18,14 @@ type ShortlistButtonProps = {
   className?: string;
 };
 
-const defaultClassName =
-  "inline-flex h-11 flex-1 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50";
-
-export function ShortlistButton({
+export const ShortlistButton = memo(function ShortlistButton({
   propertyCode,
-  className = defaultClassName,
+  className,
 }: ShortlistButtonProps) {
+  const { t } = useTranslation();
+  const toast = useToast();
   const [added, setAdded] = useState(false);
-  const [showRemove, setShowRemove] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const syncState = useCallback(() => {
     setAdded(isInShortlist(propertyCode));
@@ -40,61 +44,51 @@ export function ShortlistButton({
     };
   }, [syncState]);
 
-  const handleClick = () => {
-    if (added) {
-      if (showRemove) {
-        removeFromShortlist(propertyCode);
-        setShowRemove(false);
-      } else {
-        setShowRemove(true);
-      }
-      return;
-    }
-
+  const handleAdd = () => {
     addToShortlist(propertyCode);
+    toast.success(t("toast.addedShortlist"));
   };
 
-  if (added && showRemove) {
-    return (
-      <button
-        type="button"
-        onClick={handleClick}
-        className={`${className} border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100`}
-        aria-label={`Remove ${propertyCode} from shortlist`}
-      >
-        <span>ဖယ်ရှားရန်</span>
-        <span className="text-xs font-normal text-red-600/80">Remove</span>
-      </button>
-    );
-  }
-
-  if (added) {
-    return (
-      <button
-        type="button"
-        onClick={handleClick}
-        className={`${className} border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 hover:bg-emerald-100`}
-        aria-pressed="true"
-        aria-label={`${propertyCode} is in your shortlist. Click to remove.`}
-      >
-        <span>ရွေးချယ်ပြီး</span>
-        <span className="text-xs font-normal text-emerald-600/80">Added</span>
-      </button>
-    );
-  }
+  const handleConfirmRemove = () => {
+    removeFromShortlist(propertyCode);
+    setConfirmOpen(false);
+    toast.success(t("toast.removedShortlist"));
+  };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={className}
-      aria-pressed="false"
-      aria-label={`Add ${propertyCode} to shortlist`}
-    >
-      <span>ရွေးချယ်စာရင်းသို့ ထည့်ရန်</span>
-      <span className="text-xs font-normal text-emerald-600/70">
-        Add to Shortlist
-      </span>
-    </button>
+    <>
+      {added ? (
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          className={getButtonClassName("ghost", "md", className ?? "w-full")}
+          aria-pressed="true"
+        >
+          <IconHeartFilled size={18} className="shrink-0 text-primary" />
+          {t("card.addedShortlist")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleAdd}
+          className={getButtonClassName("primary", "md", className ?? "w-full")}
+          aria-pressed="false"
+        >
+          <IconHeart size={18} className="shrink-0" />
+          {t("card.addShortlist")}
+        </button>
+      )}
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={t("modal.removeProperty.title")}
+        description={t("modal.removeProperty.body")}
+        confirmLabel={t("modal.confirm")}
+        cancelLabel={t("modal.cancel")}
+        onConfirm={handleConfirmRemove}
+        variant="destructive"
+      />
+    </>
   );
-}
+});

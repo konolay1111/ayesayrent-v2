@@ -1,25 +1,165 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf9;
+  --foreground: #27272a;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --card: #ffffff;
+  --card-foreground: #27272a;
+  --border: #e4e4e7;
+  --input: #ffffff;
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --secondary: #ecfdf5;
+  --secondary-foreground: #065f46;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --ring: #047857;
+  --accent-warn-bg: #fffbeb;
+  --accent-warn-fg: #92400e;
+  --accent-warn-border: #fde68a;
+  --hero-glow: rgba(236, 253, 245, 0.9);
+}
+
+.dark {
+  --background: #18181b;
+  --foreground: #f4f4f5;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --card: #1f1f23;
+  --card-foreground: #f4f4f5;
+  --border: #3f3f46;
+  --input: #27272a;
+  --primary: #34d399;
+  --primary-foreground: #052e16;
+  --secondary: #064e3b;
+  --secondary-foreground: #d1fae5;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
+  --ring: #34d399;
+  --accent-warn-bg: #422006;
+  --accent-warn-fg: #fde68a;
+  --accent-warn-border: #92400e;
+  --hero-glow: rgba(6, 78, 59, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
   --font-sans: var(--font-myanmar), Arial, Helvetica, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-myanmar), Arial, Helvetica, sans-serif;
+  line-height: 1.65;
+}
+
+html.my-locale body {
+  line-height: 1.75;
+}
+
+html.my-locale button,
+html.my-locale input,
+html.my-locale select,
+html.my-locale textarea {
+  line-height: 1.5;
+}
+
+/* ── Animations ─────────────────────────────────────── */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.45s ease-out both;
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-badge-pop {
+  animation: badge-pop 0.35s ease-out;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in srgb, var(--muted) 70%, var(--foreground) 5%) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .skeleton-shimmer,
+  .animate-badge-pop {
+    animation: none;
+  }
+
+  .transition-all,
+  [class*="hover:-translate"],
+  [class*="active:scale"] {
+    transition: none !important;
+  }
 }

@@ -1,0 +1,113 @@
+# AyesayRent V2 Development Rules
+
+## Mission
+
+Build a production-ready apartment rental management platform for the Myanmar community in Bangkok.
+
+Never sacrifice maintainability for speed.
+
+---
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript Strict
+- Tailwind CSS
+- Supabase
+- Server Actions
+- Vercel
+
+---
+
+## Architecture
+
+One Feature Pack at a time.
+
+Never start another module until the current module is complete.
+
+Modules:
+
+1. Authentication
+2. Dashboard
+3. Property CRUD
+4. Room Rate CRUD
+5. Amenities CRUD
+6. Fees CRUD
+7. Nearby CRUD
+8. Photo Upload
+9. Public Website
+10. Reports
+
+---
+
+## Database
+
+Never rename database columns.
+
+Never guess schema.
+
+Always inspect existing tables.
+
+Protect primary keys.
+
+---
+
+## Server Actions
+
+Use requireAdmin().
+
+Never duplicate update logic.
+
+Always:
+
+- validate input
+- protect system fields
+- update Supabase
+- revalidate paths
+- redirect with success status
+
+---
+
+## UI
+
+Never break working UI.
+
+Keep Tailwind consistent.
+
+Prefer reusable components.
+
+---
+
+## Code Quality
+
+TypeScript strict.
+
+No any unless unavoidable.
+
+Avoid duplicate code.
+
+Prefer small reusable functions.
+
+---
+
+## Before finishing
+
+Must pass:
+
+npm run build
+
+No TypeScript errors.
+
+No ESLint errors.
+
+No broken imports.
+
+No TODO left behind.
+
+---
+
+## Golden Rule
+
+Do not modify unrelated working code.
+
+Implement only the requested Feature Pack.

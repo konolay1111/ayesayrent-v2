@@ -1,29 +1,32 @@
+import { typeH2Class, typeSmallClass } from "@/lib/public-ui";
+
 export function SectionHeading({
+  title,
+  description,
   myanmar,
   english,
-  description,
   descriptionMm,
 }: {
-  myanmar: string;
-  english: string;
+  title?: string;
   description?: string;
+  myanmar?: string;
+  english?: string;
   descriptionMm?: string;
 }) {
+  const resolvedTitle = title ?? myanmar ?? english ?? "";
+  const resolvedDescription = description ?? descriptionMm;
+
   return (
-    <div className="text-center">
-      <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-        {myanmar}
-      </h2>
-      <p className="mt-1 text-sm font-medium text-emerald-600">{english}</p>
-      {(descriptionMm || description) && (
-        <p className="mx-auto mt-4 max-w-2xl leading-relaxed text-zinc-600">
-          {descriptionMm}
-          {descriptionMm && description && (
-            <span className="mt-1 block text-sm text-zinc-500">{description}</span>
-          )}
-          {!descriptionMm && description}
+    <div className="mx-auto max-w-2xl text-center">
+      <h2 className={typeH2Class}>{resolvedTitle}</h2>
+      {resolvedDescription ? (
+        <p className={`mx-auto mt-5 max-w-xl ${typeSmallClass} sm:text-base`}>
+          {resolvedDescription}
         </p>
-      )}
+      ) : null}
+      {!title && myanmar && english ? (
+        <p className={`mx-auto mt-2 max-w-xl ${typeSmallClass}`}>{english}</p>
+      ) : null}
     </div>
   );
 }
