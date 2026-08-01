@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { memo } from "react";
 import { ShortlistButton } from "@/components/ShortlistButton";
-import {
-  IconBuilding,
-  IconMapPin,
-  IconPet,
-  IconTrain,
-} from "@/components/icons";
+import { VerifiedListingPlaceholder } from "@/components/search/VerifiedListingPlaceholder";
+import { IconMapPin, IconPet } from "@/components/icons";
 import {
   formatRentThb,
   formatRoomTypes,
@@ -51,33 +47,14 @@ export const SearchResultCard = memo(function SearchResultCard({
       className={cn(
         publicCardInteractiveClass,
         publicStaggerItemClass,
-        "flex h-full flex-col overflow-hidden rounded-2xl",
+        "group flex h-full flex-col overflow-hidden rounded-2xl",
       )}
       style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
     >
-      <div
-        className="group relative flex h-52 items-center justify-center overflow-hidden bg-gradient-to-br from-secondary via-secondary/80 to-muted sm:h-56"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 bg-primary/5 transition-transform duration-500 group-hover:scale-105" />
-        <div className="relative text-center transition-transform duration-300 group-hover:scale-[1.02]">
-          <IconBuilding size={52} className="mx-auto text-primary/25" />
-          <p className="mt-3 font-mono text-xs font-semibold tracking-wide text-primary">
-            {listing.publicReference}
-          </p>
-        </div>
-        {listing.transitName ? (
-          <span
-            className={cn(
-              publicBadgeClass,
-              "absolute left-4 top-4 max-w-[70%] truncate bg-card/90 text-foreground backdrop-blur-sm",
-            )}
-          >
-            <IconTrain size={14} className="mr-1 inline-block align-text-bottom" />
-            {listing.transitName}
-          </span>
-        ) : null}
-      </div>
+      <VerifiedListingPlaceholder
+        publicReference={listing.publicReference}
+        transitName={listing.transitName}
+      />
 
       <div className="flex flex-1 flex-col gap-5 p-6">
         <div className="space-y-3">
