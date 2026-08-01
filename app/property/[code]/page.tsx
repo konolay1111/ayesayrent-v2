@@ -1,65 +1,18 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { BilingualLabel } from "@/components/BilingualLabel";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { SectionHeading } from "@/components/SectionHeading";
 import { ShortlistButton } from "@/components/ShortlistButton";
-
-const propertyData = {
-  rent: "฿8,500",
-  area: "Ladprao",
-  areaMm: "လတ်ပါး",
-  transit: "MRT Ladprao",
-  travelTime: "Approximately 10 minutes",
-  travelTimeMm: "ခန့်မှန်းခြေ ၁၀ မိနစ်",
-  roomType: "Studio",
-  roomTypeMm: "စတူဒီယို",
-  size: "28 m²",
-  floor: "Mid floor",
-  floorMm: "အလယ်ထပ်",
-  furnished: "Fully furnished",
-  furnishedMm: "ပစ္စည်းကိရိယာ ပြည့်စုံ",
-  facilities: [
-    { en: "Air conditioning", mm: "ရေအေးပေးစက်" },
-    { en: "Bed", mm: "အိပ်ရာ" },
-    { en: "Wardrobe", mm: "အဝတ်အစားသေတ္တာ" },
-    { en: "Refrigerator", mm: "ရေခဲသေတ္တာ" },
-    { en: "Water heater", mm: "ရေပူစက်" },
-    { en: "Wi-Fi", mm: "Wi-Fi" },
-    { en: "Parking", mm: "ကားပါကင်" },
-    { en: "Security", mm: "လုံခြုံရေး" },
-    { en: "Key-card access", mm: "Key-card ဝင်ရောက်ခွင့်" },
-  ],
-};
-
-const similarProperties = [
-  {
-    code: "AYR-LAD-015",
-    rent: "฿9,200",
-    area: "Ladprao",
-    areaMm: "လတ်ပါး",
-    transit: "MRT Ladprao",
-    roomType: "Studio",
-    roomTypeMm: "စတူဒီယို",
-  },
-  {
-    code: "AYR-LAD-028",
-    rent: "฿9,800",
-    area: "Ladprao",
-    areaMm: "လတ်ပါး",
-    transit: "MRT Ladprao",
-    roomType: "1 Bedroom",
-    roomTypeMm: "တစ်ခန်းမ-bedroom",
-  },
-  {
-    code: "AYR-LAD-041",
-    rent: "฿7,500",
-    area: "Ladprao",
-    areaMm: "လတ်ပါး",
-    transit: "MRT Ladprao",
-    roomType: "Studio",
-    roomTypeMm: "စတူဒီယို",
-  },
-];
+import {
+  buildPropertyDetailHref,
+  formatRentThb,
+  formatRoomTypes,
+  formatSizeSqm,
+  getPublicPropertyDetail,
+  getSimilarPublicListings,
+} from "@/lib/public-search/queries";
 
 const viewingPolicyPoints = [
   {
@@ -111,8 +64,28 @@ type PageProps = {
   params: Promise<{ code: string }>;
 };
 
+export const dynamic = "force-dynamic";
+
+const notListed = "Not listed";
+
 export default async function PropertyPage({ params }: PageProps) {
   const { code } = await params;
+  const propertyId = code.trim();
+  const detail = await getPublicPropertyDetail(propertyId);
+
+  if (!detail) {
+    notFound();
+  }
+
+  const similarListings = detail.area
+    ? await getSimilarPublicListings(detail.propertyId, detail.area, 3)
+    : [];
+
+  const rentLabel = formatRentThb(detail.lowestMonthlyRent);
+  const areaLabel = detail.area ?? notListed;
+  const transitLabel = detail.transitName ?? notListed;
+  const roomTypeLabel = formatRoomTypes(detail.roomTypes);
+  const sizeLabel = formatSizeSqm(detail.sizeSqm);
 
   return (
     <div className="flex min-h-full flex-col bg-white font-sans text-zinc-800">
@@ -123,10 +96,10 @@ export default async function PropertyPage({ params }: PageProps) {
         <section className="border-b border-zinc-100 bg-gradient-to-b from-emerald-50/60 to-white px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <p className="font-mono text-sm font-semibold text-emerald-700">
-              {code}
+              {detail.propertyId}
             </p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              {propertyData.rent}
+              {rentLabel}
               <span className="ml-2 text-base font-normal text-zinc-500">/ လ</span>
             </h1>
             <p className="mt-1 text-sm font-medium text-emerald-600">
@@ -139,13 +112,13 @@ export default async function PropertyPage({ params }: PageProps) {
                   <BilingualLabel myanmar="ဧရိယာ" english="Area" />
                 </dt>
                 <dd className="mt-0.5 font-medium text-zinc-800">
-                  {propertyData.areaMm} ({propertyData.area})
+                  {areaLabel}
                 </dd>
               </div>
               <div>
                 <dt className="text-zinc-500">BTS / MRT</dt>
                 <dd className="mt-0.5 font-medium text-zinc-800">
-                  {propertyData.transit}
+                  {transitLabel}
                 </dd>
               </div>
             </dl>
@@ -202,7 +175,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       <BilingualLabel myanmar="လစဉ်ငှားရမ်းခ" english="Monthly Rent" />
                     </dt>
                     <dd className="mt-1 text-lg font-bold text-zinc-900">
-                      {propertyData.rent}
+                      {rentLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -213,7 +186,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.roomTypeMm} ({propertyData.roomType})
+                      {roomTypeLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -224,7 +197,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.size}
+                      {sizeLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -232,13 +205,13 @@ export default async function PropertyPage({ params }: PageProps) {
                       <BilingualLabel myanmar="ဧရိယာ" english="Area" />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.areaMm} ({propertyData.area})
+                      {areaLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
                     <dt className="text-sm text-zinc-500">BTS / MRT</dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.transit}
+                      {transitLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -249,7 +222,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.travelTimeMm} ({propertyData.travelTime})
+                      {notListed}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -257,7 +230,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       <BilingualLabel myanmar="အထပ်" english="Floor" />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.floorMm} ({propertyData.floor})
+                      {notListed}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
@@ -265,7 +238,7 @@ export default async function PropertyPage({ params }: PageProps) {
                       <BilingualLabel myanmar="ပစ္စည်းကိရိယာ" english="Furnishing" />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {propertyData.furnishedMm} ({propertyData.furnished})
+                      {notListed}
                     </dd>
                   </div>
                 </dl>
@@ -284,25 +257,26 @@ export default async function PropertyPage({ params }: PageProps) {
                 </h2>
 
                 <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {propertyData.facilities.map((facility) => (
-                    <li
-                      key={facility.en}
-                      className="flex items-start gap-2 rounded-xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 text-sm"
-                    >
-                      <span
-                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700"
-                        aria-hidden="true"
+                  {detail.amenities.length > 0 ? (
+                    detail.amenities.map((amenity) => (
+                      <li
+                        key={amenity}
+                        className="flex items-start gap-2 rounded-xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 text-sm"
                       >
-                        ✓
-                      </span>
-                      <span>
-                        {facility.mm}
-                        <span className="mt-0.5 block text-xs text-zinc-500">
-                          {facility.en}
+                        <span
+                          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700"
+                          aria-hidden="true"
+                        >
+                          ✓
                         </span>
-                      </span>
+                        <span>{amenity}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="rounded-xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 text-sm text-zinc-600">
+                      {notListed}
                     </li>
-                  ))}
+                  )}
                 </ul>
               </section>
 
@@ -417,7 +391,7 @@ export default async function PropertyPage({ params }: PageProps) {
                     </span>
                   </button>
                   <ShortlistButton
-                    propertyCode={code}
+                    propertyCode={detail.propertyId}
                     className="inline-flex h-11 w-full flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
                   />
                   <button
@@ -445,17 +419,17 @@ export default async function PropertyPage({ params }: PageProps) {
             />
 
             <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {similarProperties.map((property) => (
-                <li key={property.code}>
+              {similarListings.map((listing) => (
+                <li key={listing.propertyId}>
                   <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm transition-shadow hover:shadow-md">
                     <PlaceholderImage className="h-36" />
 
                     <div className="flex flex-1 flex-col p-5">
                       <p className="font-mono text-sm font-semibold text-emerald-700">
-                        {property.code}
+                        {listing.publicReference}
                       </p>
                       <p className="mt-2 text-xl font-bold text-zinc-900">
-                        {property.rent}
+                        {formatRentThb(listing.lowestMonthlyRent)}
                         <span className="ml-1 text-sm font-normal text-zinc-500">
                           / လ
                         </span>
@@ -467,13 +441,13 @@ export default async function PropertyPage({ params }: PageProps) {
                             <BilingualLabel myanmar="ဧရိယာ" english="Area" />
                           </dt>
                           <dd className="text-right font-medium text-zinc-800">
-                            {property.areaMm} ({property.area})
+                            {listing.area ?? notListed}
                           </dd>
                         </div>
                         <div className="flex justify-between gap-2">
                           <dt className="text-zinc-500">BTS / MRT</dt>
                           <dd className="text-right font-medium text-zinc-800">
-                            {property.transit}
+                            {listing.transitName ?? notListed}
                           </dd>
                         </div>
                         <div className="flex justify-between gap-2">
@@ -484,20 +458,20 @@ export default async function PropertyPage({ params }: PageProps) {
                             />
                           </dt>
                           <dd className="text-right font-medium text-zinc-800">
-                            {property.roomTypeMm} ({property.roomType})
+                            {formatRoomTypes(listing.matchingRoomTypes)}
                           </dd>
                         </div>
                       </dl>
 
-                      <a
-                        href={`/property/${property.code}`}
+                      <Link
+                        href={buildPropertyDetailHref(listing.propertyId)}
                         className="mt-4 inline-flex h-11 w-full flex-col items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
                       >
                         <span>အသေးစိတ်ကြည့်ရန်</span>
                         <span className="text-xs font-normal text-emerald-100">
                           View Details
                         </span>
-                      </a>
+                      </Link>
                     </div>
                   </article>
                 </li>

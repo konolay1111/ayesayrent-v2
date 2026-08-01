@@ -6,6 +6,7 @@ import { ShortlistButton } from "@/components/ShortlistButton";
 import { VerifiedListingPlaceholder } from "@/components/search/VerifiedListingPlaceholder";
 import { IconMapPin, IconPet } from "@/components/icons";
 import {
+  buildPropertyDetailHref,
   formatRentThb,
   formatRoomTypes,
   formatSizeSqm,
@@ -119,7 +120,7 @@ export const SearchResultCard = memo(function SearchResultCard({
         <div className="mt-auto space-y-3 pt-2">
           <ShortlistButton propertyCode={listing.propertyId} />
           <Link
-            href={`/property/${listing.propertyId}`}
+            href={buildPropertyDetailHref(listing.propertyId)}
             className="block text-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
           >
             {t("card.viewDetails")}

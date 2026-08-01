@@ -25,3 +25,15 @@ export type SearchFilterOptions = {
   stationsByArea: Record<string, string[]>;
   allStations: string[];
 };
+
+export type PublicPropertyDetail = {
+  propertyId: string;
+  publicReference: string;
+  area: string | null;
+  transitName: string | null;
+  lowestMonthlyRent: number | null;
+  roomTypes: string[];
+  sizeSqm: number | null;
+  petFriendly: boolean | null;
+  amenities: string[];
+};

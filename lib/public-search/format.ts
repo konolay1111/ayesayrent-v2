@@ -4,6 +4,10 @@ export function formatPublicReference(propertyId: string) {
   return `Property ${propertyId}`;
 }
 
+export function buildPropertyDetailHref(propertyId: string) {
+  return `/property/${encodeURIComponent(propertyId.trim())}`;
+}
+
 export function formatRentThb(value: number | null) {
   if (value === null) {
     return "Rent on request";

@@ -13,6 +13,7 @@ import {
 import type {
   PetFilter,
   PublicListingResult,
+  PublicPropertyDetail,
   PublicSearchFilters,
   SearchFilterOptions,
 } from "@/lib/public-search/types";
@@ -85,6 +86,7 @@ export function parseSearchFilters(searchParams: {
 }
 
 export {
+  buildPropertyDetailHref,
   formatPublicReference,
   formatPetFriendly,
   formatRentThb,
@@ -384,4 +386,95 @@ export function buildSearchQueryString(filters: PublicSearchFilters) {
   }
 
   return params.toString();
+}
+
+export async function getPublicPropertyDetail(
+  propertyId: string,
+): Promise<PublicPropertyDetail | null> {
+  const trimmedPropertyId = propertyId.trim();
+
+  if (!trimmedPropertyId) {
+    return null;
+  }
+
+  const supabase = await createPublicSearchSupabaseClient();
+
+  const { data: propertyData, error: propertyError } = await supabase
+    .from("properties")
+    .select(PUBLIC_PROPERTY_COLUMNS)
+    .eq("property_id", trimmedPropertyId)
+    .maybeSingle();
+
+  if (propertyError) {
+    logPublicSearchError("Public property detail load failed", propertyError, {
+      propertyId: trimmedPropertyId,
+    });
+    return null;
+  }
+
+  const property = propertyData as PublicPropertyRow | null;
+
+  if (!property) {
+    return null;
+  }
+
+  const [{ data: roomRateData }, { data: amenityData }] = await Promise.all([
+    supabase
+      .from("room_rates")
+      .select(PUBLIC_ROOM_RATE_COLUMNS)
+      .eq("property_id", trimmedPropertyId),
+    supabase
+      .from("amenities")
+      .select(PUBLIC_AMENITY_COLUMNS)
+      .eq("property_id", trimmedPropertyId)
+      .maybeSingle(),
+  ]);
+
+  const roomRates = ((roomRateData ?? []) as unknown as PublicRoomRateRow[]).filter(
+    isUsableRoomRate,
+  );
+  const amenity = amenityData as PublicAmenityRow | null;
+  const sortedRooms = [...roomRates].sort(
+    (left, right) =>
+      (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
+      (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
+  );
+  const bestRoom = sortedRooms[0];
+  const roomTypes = [
+    ...new Set(
+      sortedRooms
+        .map((room) => room.room_type?.trim())
+        .filter((roomType): roomType is string => Boolean(roomType)),
+    ),
+  ];
+
+  return {
+    propertyId: property.property_id,
+    publicReference: formatPublicReference(property.property_id),
+    area: property.area,
+    transitName: property.transit_name,
+    lowestMonthlyRent: bestRoom?.monthly_rent_thb ?? null,
+    roomTypes,
+    sizeSqm: bestRoom?.size_sqm ?? null,
+    petFriendly: amenity?.pet_friendly ?? null,
+    amenities: amenity ? getPublicAmenityLabels(amenity) : [],
+  };
+}
+
+export async function getSimilarPublicListings(
+  propertyId: string,
+  area: string,
+  limit = 3,
+): Promise<PublicListingResult[]> {
+  const { results } = await searchPublicListings({
+    area,
+    station: "",
+    minRent: null,
+    maxRent: null,
+    pet: "all",
+  });
+
+  return results
+    .filter((listing) => listing.propertyId !== propertyId)
+    .slice(0, limit);
 }
