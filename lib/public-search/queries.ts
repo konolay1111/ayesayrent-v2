@@ -10,6 +10,10 @@ import {
   type PublicPropertyRow,
   type PublicRoomRateRow,
 } from "@/lib/public-search/fields";
+import {
+  normalizeMonthlyRentThb,
+  parseRentFilterValue,
+} from "@/lib/public-search/rent";
 import type {
   PetFilter,
   PublicListingResult,
@@ -25,6 +29,8 @@ const INACTIVE_RECORD_STATUSES = new Set([
   "deleted",
   "draft",
 ]);
+
+const ROOM_RATE_PAGE_SIZE = 1000;
 
 type SupabaseErrorLike = {
   message?: string;
@@ -65,10 +71,8 @@ export function parseSearchFilters(searchParams: {
   maxRent?: string;
   pet?: string;
 }): PublicSearchFilters {
-  const minRentRaw = searchParams.minRent?.trim() ?? "";
-  const maxRentRaw = searchParams.maxRent?.trim() ?? "";
-  const minRent = minRentRaw ? Number(minRentRaw) : null;
-  const maxRent = maxRentRaw ? Number(maxRentRaw) : null;
+  const minRent = parseRentFilterValue(searchParams.minRent);
+  const maxRent = parseRentFilterValue(searchParams.maxRent);
 
   let pet: PetFilter = "all";
   if (searchParams.pet === "true" || searchParams.pet === "yes") {
@@ -80,11 +84,13 @@ export function parseSearchFilters(searchParams: {
   return {
     area: searchParams.area?.trim() ?? "",
     station: searchParams.station?.trim() ?? "",
-    minRent: minRent !== null && Number.isFinite(minRent) ? minRent : null,
-    maxRent: maxRent !== null && Number.isFinite(maxRent) ? maxRent : null,
+    minRent,
+    maxRent,
     pet,
   };
 }
+
+export { parseRentFilterValue, normalizeMonthlyRentThb } from "@/lib/public-search/rent";
 
 export {
   buildPropertyDetailHref,
@@ -99,13 +105,24 @@ export {
   formatDeposit,
 } from "@/lib/public-search/format";
 
+function withNormalizedRent(
+  roomRate: PublicRoomRateRow,
+): PublicRoomRateRow {
+  return {
+    ...roomRate,
+    monthly_rent_thb: normalizeMonthlyRentThb(roomRate.monthly_rent_thb),
+  };
+}
+
 function toPublicRoomRateOption(
   roomRate: PublicRoomRateRow,
 ): PublicRoomRateOption {
+  const monthlyRent = normalizeMonthlyRentThb(roomRate.monthly_rent_thb);
+
   return {
     roomRateId: roomRate.room_rate_id,
     roomType: roomRate.room_type,
-    monthlyRent: roomRate.monthly_rent_thb,
+    monthlyRent,
     sizeSqm: roomRate.size_sqm,
     floorOptionsRaw: roomRate.floor_options_raw,
     contractOptionsRaw: roomRate.contract_options_raw,
@@ -115,11 +132,14 @@ function toPublicRoomRateOption(
 }
 
 function sortRoomRatesByRent(roomRates: PublicRoomRateRow[]) {
-  return [...roomRates].sort(
-    (left, right) =>
-      (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
-      (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
-  );
+  return [...roomRates].sort((left, right) => {
+    const leftRent =
+      normalizeMonthlyRentThb(left.monthly_rent_thb) ?? Number.MAX_SAFE_INTEGER;
+    const rightRent =
+      normalizeMonthlyRentThb(right.monthly_rent_thb) ?? Number.MAX_SAFE_INTEGER;
+
+    return leftRent - rightRent;
+  });
 }
 
 function resolveSelectedRoomRate(
@@ -158,10 +178,9 @@ function resolveSelectedRoomRate(
 }
 
 function isUsableRoomRate(roomRate: PublicRoomRateRow) {
-  if (
-    roomRate.monthly_rent_thb === null ||
-    roomRate.monthly_rent_thb <= 0
-  ) {
+  const rent = normalizeMonthlyRentThb(roomRate.monthly_rent_thb);
+
+  if (rent === null || rent <= 0) {
     return false;
   }
 
@@ -178,7 +197,7 @@ function roomRateMatchesRent(
   roomRate: PublicRoomRateRow,
   filters: PublicSearchFilters,
 ) {
-  const rent = roomRate.monthly_rent_thb;
+  const rent = normalizeMonthlyRentThb(roomRate.monthly_rent_thb);
 
   if (rent === null) {
     return false;
@@ -193,6 +212,56 @@ function roomRateMatchesRent(
   }
 
   return true;
+}
+
+async function fetchRoomRatesForProperties(
+  supabase: Awaited<ReturnType<typeof createPublicSearchSupabaseClient>>,
+  propertyIds: string[],
+  filters: PublicSearchFilters,
+): Promise<{ roomRates: PublicRoomRateRow[]; error: SupabaseErrorLike | null }> {
+  if (propertyIds.length === 0) {
+    return { roomRates: [], error: null };
+  }
+
+  const roomRates: PublicRoomRateRow[] = [];
+  let offset = 0;
+
+  while (true) {
+    let roomRateQuery = supabase
+      .from("room_rates")
+      .select(PUBLIC_ROOM_RATE_COLUMNS)
+      .in("property_id", propertyIds)
+      .order("property_id")
+      .order("room_rate_id");
+
+    if (filters.minRent !== null) {
+      roomRateQuery = roomRateQuery.gte("monthly_rent_thb", filters.minRent);
+    }
+
+    if (filters.maxRent !== null) {
+      roomRateQuery = roomRateQuery.lte("monthly_rent_thb", filters.maxRent);
+    }
+
+    const { data, error } = await roomRateQuery.range(
+      offset,
+      offset + ROOM_RATE_PAGE_SIZE - 1,
+    );
+
+    if (error) {
+      return { roomRates: [], error };
+    }
+
+    const page = (data ?? []) as unknown as PublicRoomRateRow[];
+    roomRates.push(...page.map(withNormalizedRent));
+
+    if (page.length < ROOM_RATE_PAGE_SIZE) {
+      break;
+    }
+
+    offset += ROOM_RATE_PAGE_SIZE;
+  }
+
+  return { roomRates, error: null };
 }
 
 function amenityMatchesPet(
@@ -306,12 +375,9 @@ export async function searchPublicListings(
 
   const propertyIds = properties.map((property) => property.property_id);
 
-  const [{ data: roomRateData, error: roomRateError }, { data: amenityData }] =
+  const [{ roomRates: roomRateData, error: roomRateError }, { data: amenityData }] =
     await Promise.all([
-      supabase
-        .from("room_rates")
-        .select(PUBLIC_ROOM_RATE_COLUMNS)
-        .in("property_id", propertyIds),
+      fetchRoomRatesForProperties(supabase, propertyIds, filters),
       supabase
         .from("amenities")
         .select(PUBLIC_AMENITY_COLUMNS)
@@ -321,6 +387,7 @@ export async function searchPublicListings(
   if (roomRateError) {
     logPublicSearchError("Public room rate search failed", roomRateError, {
       propertyCount: propertyIds.length,
+      filters,
     });
     return {
       results: [],
@@ -328,9 +395,7 @@ export async function searchPublicListings(
     };
   }
 
-  const roomRates = ((roomRateData ?? []) as unknown as PublicRoomRateRow[]).filter(
-    isUsableRoomRate,
-  );
+  const roomRates = roomRateData.filter(isUsableRoomRate);
   const amenitiesByProperty = new Map<string, PublicAmenityRow>();
 
   for (const amenity of (amenityData ?? []) as unknown as PublicAmenityRow[]) {
@@ -366,7 +431,7 @@ export async function searchPublicListings(
       publicReference: formatPublicReference(property.property_id),
       area: property.area,
       transitName: property.transit_name,
-      monthlyRent: roomRate.monthly_rent_thb,
+      monthlyRent: normalizeMonthlyRentThb(roomRate.monthly_rent_thb),
       roomType: roomRate.room_type,
       sizeSqm: roomRate.size_sqm,
       floorOptionsRaw: roomRate.floor_options_raw,
@@ -469,9 +534,9 @@ export async function getPublicPropertyDetail(
       .maybeSingle(),
   ]);
 
-  const roomRates = ((roomRateData ?? []) as unknown as PublicRoomRateRow[]).filter(
-    isUsableRoomRate,
-  );
+  const roomRates = ((roomRateData ?? []) as unknown as PublicRoomRateRow[])
+    .map(withNormalizedRent)
+    .filter(isUsableRoomRate);
 
   if (roomRates.length === 0) {
     return null;
