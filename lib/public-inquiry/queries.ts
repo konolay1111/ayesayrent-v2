@@ -1,11 +1,18 @@
 import { createAdminServiceClient } from "@/lib/supabase/admin-service";
-import { formatPublicReference } from "@/lib/public-search/queries";
+import {
+  formatFloor,
+  formatPublicReference,
+  formatRentThb,
+  formatRoomType,
+  formatSizeSqm,
+} from "@/lib/public-search/format";
 import {
   PUBLIC_PROPERTY_COLUMNS,
   PUBLIC_ROOM_RATE_COLUMNS,
   type PublicPropertyRow,
   type PublicRoomRateRow,
 } from "@/lib/public-search/fields";
+import { parseShortlistSelection } from "@/lib/shortlist";
 
 const INACTIVE_RECORD_STATUSES = new Set([
   "inactive",
@@ -16,10 +23,15 @@ const INACTIVE_RECORD_STATUSES = new Set([
 
 export type InquiryListingSummary = {
   propertyId: string;
+  roomRateId: string;
   publicReference: string;
   area: string | null;
   transitName: string | null;
-  startingMonthlyRent: number | null;
+  monthlyRent: number | null;
+  roomType: string | null;
+  sizeSqm: number | null;
+  floorOptionsRaw: string | null;
+  displayLabel: string;
 };
 
 function isUsableRoomRate(roomRate: PublicRoomRateRow) {
@@ -39,12 +51,32 @@ function isUsableRoomRate(roomRate: PublicRoomRateRow) {
   );
 }
 
-export async function getInquiryListingSummary(
-  propertyId: string,
-): Promise<InquiryListingSummary | null> {
-  const trimmedPropertyId = propertyId.trim();
+function buildDisplayLabel(summary: {
+  publicReference: string;
+  roomRateId: string;
+  monthlyRent: number | null;
+  roomType: string | null;
+  sizeSqm: number | null;
+  floorOptionsRaw: string | null;
+}) {
+  return [
+    summary.publicReference,
+    summary.roomRateId,
+    formatRentThb(summary.monthlyRent),
+    formatRoomType(summary.roomType),
+    formatSizeSqm(summary.sizeSqm),
+    formatFloor(summary.floorOptionsRaw),
+  ].join(" • ");
+}
 
-  if (!trimmedPropertyId) {
+export async function getInquiryListingSummary(
+  selectionKey: string,
+): Promise<InquiryListingSummary | null> {
+  const parsedSelection = parseShortlistSelection(selectionKey);
+  const propertyId = parsedSelection?.propertyId ?? selectionKey.trim();
+  const roomRateId = parsedSelection?.roomRateId ?? null;
+
+  if (!propertyId) {
     return null;
   }
 
@@ -53,7 +85,7 @@ export async function getInquiryListingSummary(
   const { data: propertyData, error: propertyError } = await supabase
     .from("properties")
     .select(PUBLIC_PROPERTY_COLUMNS)
-    .eq("property_id", trimmedPropertyId)
+    .eq("property_id", propertyId)
     .maybeSingle();
 
   if (propertyError) {
@@ -62,7 +94,8 @@ export async function getInquiryListingSummary(
       code: propertyError.code,
       details: propertyError.details,
       hint: propertyError.hint,
-      propertyId: trimmedPropertyId,
+      propertyId,
+      roomRateId,
     });
     return null;
   }
@@ -76,7 +109,7 @@ export async function getInquiryListingSummary(
   const { data: roomRateData, error: roomRateError } = await supabase
     .from("room_rates")
     .select(PUBLIC_ROOM_RATE_COLUMNS)
-    .eq("property_id", trimmedPropertyId);
+    .eq("property_id", propertyId);
 
   if (roomRateError) {
     console.error("Failed to load inquiry listing room rates:", {
@@ -84,7 +117,8 @@ export async function getInquiryListingSummary(
       code: roomRateError.code,
       details: roomRateError.details,
       hint: roomRateError.hint,
-      propertyId: trimmedPropertyId,
+      propertyId,
+      roomRateId,
     });
   }
 
@@ -92,20 +126,39 @@ export async function getInquiryListingSummary(
     isUsableRoomRate,
   );
 
-  const startingMonthlyRent =
-    usableRoomRates.length > 0
-      ? Math.min(
-          ...usableRoomRates.map(
-            (roomRate) => roomRate.monthly_rent_thb as number,
-          ),
-        )
-      : null;
+  if (usableRoomRates.length === 0) {
+    return null;
+  }
 
-  return {
+  const selectedRoomRate =
+    (roomRateId
+      ? usableRoomRates.find((roomRate) => roomRate.room_rate_id === roomRateId)
+      : null) ??
+    [...usableRoomRates].sort(
+      (left, right) =>
+        (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
+        (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
+    )[0];
+
+  if (!selectedRoomRate) {
+    return null;
+  }
+
+  const summary = {
     propertyId: property.property_id,
+    roomRateId: selectedRoomRate.room_rate_id,
     publicReference: formatPublicReference(property.property_id),
     area: property.area,
     transitName: property.transit_name,
-    startingMonthlyRent,
+    monthlyRent: selectedRoomRate.monthly_rent_thb,
+    roomType: selectedRoomRate.room_type,
+    sizeSqm: selectedRoomRate.size_sqm,
+    floorOptionsRaw: selectedRoomRate.floor_options_raw,
+    displayLabel: "",
+  };
+
+  return {
+    ...summary,
+    displayLabel: buildDisplayLabel(summary),
   };
 }

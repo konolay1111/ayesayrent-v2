@@ -5,6 +5,7 @@ import { addToShortlist } from "@/lib/shortlist";
 
 type CheckAvailabilityButtonProps = {
   propertyId: string;
+  roomRateId: string;
   className?: string;
 };
 
@@ -13,6 +14,7 @@ const defaultClassName =
 
 export function CheckAvailabilityButton({
   propertyId,
+  roomRateId,
   className = defaultClassName,
 }: CheckAvailabilityButtonProps) {
   const router = useRouter();
@@ -22,7 +24,7 @@ export function CheckAvailabilityButton({
       type="button"
       className={className}
       onClick={() => {
-        addToShortlist(propertyId);
+        addToShortlist(propertyId, roomRateId);
         router.push("/shortlist");
       }}
     >

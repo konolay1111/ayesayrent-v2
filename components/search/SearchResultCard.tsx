@@ -7,8 +7,9 @@ import { VerifiedListingPlaceholder } from "@/components/search/VerifiedListingP
 import { IconMapPin, IconPet } from "@/components/icons";
 import {
   buildPropertyDetailHref,
+  formatFloor,
   formatRentThb,
-  formatRoomTypes,
+  formatRoomType,
   formatSizeSqm,
 } from "@/lib/public-search/format";
 import type { PublicListingResult } from "@/lib/public-search/types";
@@ -42,6 +43,10 @@ export const SearchResultCard = memo(function SearchResultCard({
   const { t } = useTranslation();
   const petText = petLabel(listing.petFriendly, t);
   const isPetFriendly = listing.petFriendly === true;
+  const detailHref = buildPropertyDetailHref(
+    listing.propertyId,
+    listing.roomRateId,
+  );
 
   return (
     <article
@@ -62,7 +67,7 @@ export const SearchResultCard = memo(function SearchResultCard({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-3xl font-bold tracking-tight text-primary sm:text-4xl">
-                {formatRentThb(listing.lowestMonthlyRent)}
+                {formatRentThb(listing.monthlyRent)}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{t("card.perMonth")}</p>
             </div>
@@ -91,13 +96,19 @@ export const SearchResultCard = memo(function SearchResultCard({
           <div>
             <dt className={typeSmallClass}>{t("card.roomType")}</dt>
             <dd className="mt-0.5 font-medium text-foreground">
-              {formatRoomTypes(listing.matchingRoomTypes)}
+              {formatRoomType(listing.roomType)}
             </dd>
           </div>
           <div>
             <dt className={typeSmallClass}>{t("card.roomSize")}</dt>
             <dd className="mt-0.5 font-medium text-foreground">
               {formatSizeSqm(listing.sizeSqm)}
+            </dd>
+          </div>
+          <div>
+            <dt className={typeSmallClass}>Floor</dt>
+            <dd className="mt-0.5 font-medium text-foreground">
+              {formatFloor(listing.floorOptionsRaw)}
             </dd>
           </div>
           {listing.amenities.length > 0 ? (
@@ -118,9 +129,12 @@ export const SearchResultCard = memo(function SearchResultCard({
         </dl>
 
         <div className="mt-auto space-y-3 pt-2">
-          <ShortlistButton propertyCode={listing.propertyId} />
+          <ShortlistButton
+            propertyId={listing.propertyId}
+            roomRateId={listing.roomRateId}
+          />
           <Link
-            href={buildPropertyDetailHref(listing.propertyId)}
+            href={detailHref}
             className="block text-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
           >
             {t("card.viewDetails")}

@@ -6,6 +6,7 @@ import {
   getInquiryListingSummary,
   type InquiryListingSummary,
 } from "@/lib/public-inquiry/queries";
+import { encodeShortlistSelection } from "@/lib/shortlist";
 import { createAdminServiceClient } from "@/lib/supabase/admin-service";
 
 export type SubmitShortlistRequestState = {
@@ -95,18 +96,18 @@ function parsePropertyCodesField(rawValue: string): string[] | null {
 }
 
 export async function loadShortlistSummariesAction(
-  propertyCodes: string[],
+  selectionKeys: string[],
 ): Promise<
-  Array<{ propertyId: string; summary: InquiryListingSummary | null }>
+  Array<{ selectionKey: string; summary: InquiryListingSummary | null }>
 > {
-  const uniqueCodes = [
-    ...new Set(propertyCodes.map((code) => code.trim()).filter(Boolean)),
+  const uniqueKeys = [
+    ...new Set(selectionKeys.map((key) => key.trim()).filter(Boolean)),
   ];
 
   return Promise.all(
-    uniqueCodes.map(async (propertyId) => ({
-      propertyId,
-      summary: await getInquiryListingSummary(propertyId),
+    uniqueKeys.map(async (selectionKey) => ({
+      selectionKey,
+      summary: await getInquiryListingSummary(selectionKey),
     })),
   );
 }
@@ -161,8 +162,8 @@ export async function submitShortlistRequestAction(
     };
   }
 
-  const validatedPropertyCodes = listings.map(
-    (listing) => listing!.propertyId,
+  const validatedSelectionKeys = listings.map((listing) =>
+    encodeShortlistSelection(listing!.propertyId, listing!.roomRateId),
   );
 
   if (!customerName) {
@@ -240,7 +241,7 @@ export async function submitShortlistRequestAction(
     move_in_date: moveInDate,
     number_of_occupants: parsedOccupants,
     additional_notes: buildAdditionalNotes(contractLength, message),
-    property_codes: validatedPropertyCodes,
+    property_codes: validatedSelectionKeys,
     availability_acknowledged: true,
     viewing_policy_acknowledged: true,
     status: "new" as const,
@@ -252,7 +253,7 @@ export async function submitShortlistRequestAction(
 
   if (error) {
     logAvailabilityRequestError("Shortlist request submission failed:", error, {
-      propertyCodeCount: validatedPropertyCodes.length,
+      propertyCodeCount: validatedSelectionKeys.length,
     });
     return {
       error:
@@ -261,6 +262,6 @@ export async function submitShortlistRequestAction(
   }
 
   redirect(
-    `/shortlist/success?ref=${encodeURIComponent(requestReference)}&propertyIds=${encodeURIComponent(validatedPropertyCodes.join(","))}`,
+    `/shortlist/success?ref=${encodeURIComponent(requestReference)}&propertyIds=${encodeURIComponent(validatedSelectionKeys.join(","))}`,
   );
 }

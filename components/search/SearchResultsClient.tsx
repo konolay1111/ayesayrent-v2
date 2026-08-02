@@ -88,7 +88,7 @@ export function SearchResultsClient({
           </h2>
           <ul className="grid gap-8 lg:grid-cols-2">
             {results.map((listing, index) => (
-              <li key={listing.propertyId}>
+              <li key={`${listing.propertyId}:${listing.roomRateId}`}>
                 <SearchResultCard listing={listing} index={index} />
               </li>
             ))}

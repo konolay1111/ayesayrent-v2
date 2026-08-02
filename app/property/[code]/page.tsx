@@ -7,8 +7,11 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { ShortlistButton } from "@/components/ShortlistButton";
 import {
   buildPropertyDetailHref,
+  formatContract,
+  formatDeposit,
+  formatFloor,
   formatRentThb,
-  formatRoomTypes,
+  formatRoomType,
   formatSizeSqm,
   getPublicPropertyDetail,
   getSimilarPublicListings,
@@ -62,30 +65,47 @@ function PlaceholderImage({ className }: { className?: string }) {
 
 type PageProps = {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ roomRate?: string }>;
 };
 
 export const dynamic = "force-dynamic";
 
 const notListed = "Not listed";
 
-export default async function PropertyPage({ params }: PageProps) {
+export default async function PropertyPage({ params, searchParams }: PageProps) {
   const { code } = await params;
+  const { roomRate } = await searchParams;
   const propertyId = code.trim();
-  const detail = await getPublicPropertyDetail(propertyId);
+  const detail = await getPublicPropertyDetail(propertyId, roomRate);
 
   if (!detail) {
     notFound();
   }
 
+  const selected = detail.selectedRoomRate;
+  const alternativeRoomRates = detail.roomRates.filter(
+    (roomRateOption) => roomRateOption.roomRateId !== selected.roomRateId,
+  );
   const similarListings = detail.area
-    ? await getSimilarPublicListings(detail.propertyId, detail.area, 3)
+    ? await getSimilarPublicListings(
+        detail.propertyId,
+        selected.roomRateId,
+        detail.area,
+        3,
+      )
     : [];
 
-  const rentLabel = formatRentThb(detail.lowestMonthlyRent);
+  const rentLabel = formatRentThb(selected.monthlyRent);
   const areaLabel = detail.area ?? notListed;
   const transitLabel = detail.transitName ?? notListed;
-  const roomTypeLabel = formatRoomTypes(detail.roomTypes);
-  const sizeLabel = formatSizeSqm(detail.sizeSqm);
+  const roomTypeLabel = formatRoomType(selected.roomType);
+  const sizeLabel = formatSizeSqm(selected.sizeSqm);
+  const floorLabel = formatFloor(selected.floorOptionsRaw);
+  const contractLabel = formatContract(selected.contractOptionsRaw);
+  const depositLabel = formatDeposit(
+    selected.depositMonthsRaw,
+    selected.depositAmountThb,
+  );
 
   return (
     <div className="flex min-h-full flex-col bg-white font-sans text-zinc-800">
@@ -105,6 +125,12 @@ export default async function PropertyPage({ params }: PageProps) {
             <p className="mt-1 text-sm font-medium text-emerald-600">
               Monthly rent
             </p>
+            {detail.selectedRoomRateIsFallback ? (
+              <p className="mt-2 text-xs font-medium text-amber-700">
+                Showing the default room option because the requested room rate
+                was unavailable.
+              </p>
+            ) : null}
 
             <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm">
               <div>
@@ -216,32 +242,59 @@ export default async function PropertyPage({ params }: PageProps) {
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
                     <dt className="text-sm text-zinc-500">
-                      <BilingualLabel
-                        myanmar="ဘူတာရုံသို့ ခန့်မှန်းခြေ"
-                        english="Approximate Travel Time"
-                      />
-                    </dt>
-                    <dd className="mt-1 font-medium text-zinc-800">
-                      {notListed}
-                    </dd>
-                  </div>
-                  <div className="rounded-xl bg-zinc-50 px-4 py-3">
-                    <dt className="text-sm text-zinc-500">
                       <BilingualLabel myanmar="အထပ်" english="Floor" />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {notListed}
+                      {floorLabel}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-zinc-50 px-4 py-3">
                     <dt className="text-sm text-zinc-500">
-                      <BilingualLabel myanmar="ပစ္စည်းကိရိယာ" english="Furnishing" />
+                      <BilingualLabel myanmar="စာချုပ်" english="Contract" />
                     </dt>
                     <dd className="mt-1 font-medium text-zinc-800">
-                      {notListed}
+                      {contractLabel}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-zinc-50 px-4 py-3">
+                    <dt className="text-sm text-zinc-500">
+                      <BilingualLabel myanmar="အပ်ငွေ" english="Deposit" />
+                    </dt>
+                    <dd className="mt-1 font-medium text-zinc-800">
+                      {depositLabel}
                     </dd>
                   </div>
                 </dl>
+
+                {alternativeRoomRates.length > 0 ? (
+                  <div className="mt-8 border-t border-zinc-100 pt-6">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                      Other room options
+                    </h3>
+                    <ul className="mt-4 space-y-3">
+                      {alternativeRoomRates.map((roomRateOption) => (
+                        <li key={roomRateOption.roomRateId}>
+                          <Link
+                            href={buildPropertyDetailHref(
+                              detail.propertyId,
+                              roomRateOption.roomRateId,
+                            )}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 px-4 py-3 text-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40"
+                          >
+                            <span className="font-medium text-zinc-800">
+                              {formatRoomType(roomRateOption.roomType)} •{" "}
+                              {formatSizeSqm(roomRateOption.sizeSqm)} •{" "}
+                              {formatFloor(roomRateOption.floorOptionsRaw)}
+                            </span>
+                            <span className="font-semibold text-emerald-700">
+                              {formatRentThb(roomRateOption.monthlyRent)}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </section>
 
               {/* Facilities */}
@@ -391,7 +444,8 @@ export default async function PropertyPage({ params }: PageProps) {
                     </span>
                   </button>
                   <ShortlistButton
-                    propertyCode={detail.propertyId}
+                    propertyId={detail.propertyId}
+                    roomRateId={selected.roomRateId}
                     className="inline-flex h-11 w-full flex-col items-center justify-center rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
                   />
                   <button
@@ -420,7 +474,7 @@ export default async function PropertyPage({ params }: PageProps) {
 
             <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {similarListings.map((listing) => (
-                <li key={listing.propertyId}>
+                <li key={`${listing.propertyId}:${listing.roomRateId}`}>
                   <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm transition-shadow hover:shadow-md">
                     <PlaceholderImage className="h-36" />
 
@@ -429,7 +483,7 @@ export default async function PropertyPage({ params }: PageProps) {
                         {listing.publicReference}
                       </p>
                       <p className="mt-2 text-xl font-bold text-zinc-900">
-                        {formatRentThb(listing.lowestMonthlyRent)}
+                        {formatRentThb(listing.monthlyRent)}
                         <span className="ml-1 text-sm font-normal text-zinc-500">
                           / လ
                         </span>
@@ -458,13 +512,24 @@ export default async function PropertyPage({ params }: PageProps) {
                             />
                           </dt>
                           <dd className="text-right font-medium text-zinc-800">
-                            {formatRoomTypes(listing.matchingRoomTypes)}
+                            {formatRoomType(listing.roomType)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-zinc-500">
+                            <BilingualLabel myanmar="အထပ်" english="Floor" />
+                          </dt>
+                          <dd className="text-right font-medium text-zinc-800">
+                            {formatFloor(listing.floorOptionsRaw)}
                           </dd>
                         </div>
                       </dl>
 
                       <Link
-                        href={buildPropertyDetailHref(listing.propertyId)}
+                        href={buildPropertyDetailHref(
+                          listing.propertyId,
+                          listing.roomRateId,
+                        )}
                         className="mt-4 inline-flex h-11 w-full flex-col items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
                       >
                         <span>အသေးစိတ်ကြည့်ရန်</span>

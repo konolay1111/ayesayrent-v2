@@ -10,12 +10,17 @@ export type PublicSearchFilters = {
 
 export type PublicListingResult = {
   propertyId: string;
+  roomRateId: string;
   publicReference: string;
   area: string | null;
   transitName: string | null;
-  lowestMonthlyRent: number | null;
-  matchingRoomTypes: string[];
+  monthlyRent: number | null;
+  roomType: string | null;
   sizeSqm: number | null;
+  floorOptionsRaw: string | null;
+  contractOptionsRaw: string | null;
+  depositMonthsRaw: string | null;
+  depositAmountThb: number | null;
   petFriendly: boolean | null;
   amenities: string[];
 };
@@ -26,14 +31,25 @@ export type SearchFilterOptions = {
   allStations: string[];
 };
 
+export type PublicRoomRateOption = {
+  roomRateId: string;
+  roomType: string | null;
+  monthlyRent: number | null;
+  sizeSqm: number | null;
+  floorOptionsRaw: string | null;
+  contractOptionsRaw: string | null;
+  depositMonthsRaw: string | null;
+  depositAmountThb: number | null;
+};
+
 export type PublicPropertyDetail = {
   propertyId: string;
   publicReference: string;
   area: string | null;
   transitName: string | null;
-  lowestMonthlyRent: number | null;
-  roomTypes: string[];
-  sizeSqm: number | null;
   petFriendly: boolean | null;
   amenities: string[];
+  roomRates: PublicRoomRateOption[];
+  selectedRoomRate: PublicRoomRateOption;
+  selectedRoomRateIsFallback: boolean;
 };

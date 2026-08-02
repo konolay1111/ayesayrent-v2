@@ -9,27 +9,31 @@ import { useTranslation } from "@/lib/i18n/locale-provider";
 import {
   SHORTLIST_CHANGE_EVENT,
   addToShortlist,
+  encodeShortlistSelection,
   isInShortlist,
   removeFromShortlist,
 } from "@/lib/shortlist";
 
 type ShortlistButtonProps = {
-  propertyCode: string;
+  propertyId: string;
+  roomRateId: string;
   className?: string;
 };
 
 export const ShortlistButton = memo(function ShortlistButton({
-  propertyCode,
+  propertyId,
+  roomRateId,
   className,
 }: ShortlistButtonProps) {
   const { t } = useTranslation();
   const toast = useToast();
+  const selectionKey = encodeShortlistSelection(propertyId, roomRateId);
   const [added, setAdded] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const syncState = useCallback(() => {
-    setAdded(isInShortlist(propertyCode));
-  }, [propertyCode]);
+    setAdded(isInShortlist(propertyId, roomRateId));
+  }, [propertyId, roomRateId]);
 
   useEffect(() => {
     syncState();
@@ -45,12 +49,12 @@ export const ShortlistButton = memo(function ShortlistButton({
   }, [syncState]);
 
   const handleAdd = () => {
-    addToShortlist(propertyCode);
+    addToShortlist(propertyId, roomRateId);
     toast.success(t("toast.addedShortlist"));
   };
 
   const handleConfirmRemove = () => {
-    removeFromShortlist(propertyCode);
+    removeFromShortlist(selectionKey);
     setConfirmOpen(false);
     toast.success(t("toast.removedShortlist"));
   };

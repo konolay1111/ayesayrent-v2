@@ -13,10 +13,11 @@ import { useToast } from "@/components/ui/Toast";
 import { getButtonClassName } from "@/components/ui/Button";
 import { useTranslation } from "@/lib/i18n/locale-provider";
 import type { InquiryListingSummary } from "@/lib/public-inquiry/queries";
-import { formatRentThb } from "@/lib/public-search/format";
+import { formatRentThb, formatRoomType, formatSizeSqm, formatFloor } from "@/lib/public-search/format";
 import {
   SHORTLIST_CHANGE_EVENT,
   addToShortlist,
+  parseShortlistSelection,
   readShortlist,
   removeFromShortlist,
 } from "@/lib/shortlist";
@@ -63,13 +64,18 @@ export default function ShortlistPage() {
   }, [syncShortlist]);
 
   useEffect(() => {
-    const propertyId = searchParams.get("add")?.trim();
+    const addSelection = searchParams.get("add")?.trim();
 
-    if (!propertyId || addedViaUrl.current) {
+    if (!addSelection || addedViaUrl.current) {
       return;
     }
 
-    addToShortlist(propertyId);
+    const parsedSelection = parseShortlistSelection(addSelection);
+
+    if (parsedSelection) {
+      addToShortlist(parsedSelection.propertyId, parsedSelection.roomRateId);
+    }
+
     addedViaUrl.current = true;
     toast.success(t("toast.addedShortlist"));
     router.replace("/shortlist", { scroll: false });
@@ -92,7 +98,7 @@ export default function ShortlistPage() {
         }
 
         setSummaries(
-          new Map(results.map((item) => [item.propertyId, item.summary])),
+          new Map(results.map((item) => [item.selectionKey, item.summary])),
         );
       })
       .finally(() => {
@@ -181,22 +187,47 @@ export default function ShortlistPage() {
                 </div>
 
                 <ul className="space-y-4">
-                  {codes.map((code) => {
-                    const summary = summaries.get(code);
+                  {codes.map((selectionKey) => {
+                    const summary = summaries.get(selectionKey);
 
                     return (
-                      <li key={code} className="animate-fade-in-up">
+                      <li key={selectionKey} className="animate-fade-in-up">
                         <article className={`${publicCardClass} p-5`}>
                           <p className="font-mono text-sm font-semibold text-primary">
-                            {summary?.publicReference ?? code}
+                            {summary?.publicReference ??
+                              parseShortlistSelection(selectionKey)?.propertyId ??
+                              selectionKey}
                           </p>
+                          {summary?.roomRateId ? (
+                            <p className="mt-1 font-mono text-xs text-muted-foreground">
+                              {summary.roomRateId}
+                            </p>
+                          ) : null}
 
                           {summary ? (
                             <dl className="mt-4 space-y-2 text-sm">
                               <div className="flex justify-between gap-2">
                                 <dt className="text-muted-foreground">{t("shortlist.monthlyRent")}</dt>
                                 <dd className="font-medium text-foreground">
-                                  {formatRentThb(summary.startingMonthlyRent)}
+                                  {formatRentThb(summary.monthlyRent)}
+                                </dd>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <dt className="text-muted-foreground">{t("card.roomType")}</dt>
+                                <dd className="text-right font-medium text-foreground">
+                                  {formatRoomType(summary.roomType)}
+                                </dd>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <dt className="text-muted-foreground">{t("card.roomSize")}</dt>
+                                <dd className="text-right font-medium text-foreground">
+                                  {formatSizeSqm(summary.sizeSqm)}
+                                </dd>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <dt className="text-muted-foreground">Floor</dt>
+                                <dd className="text-right font-medium text-foreground">
+                                  {formatFloor(summary.floorOptionsRaw)}
                                 </dd>
                               </div>
                               <div className="flex justify-between gap-2">
@@ -225,7 +256,7 @@ export default function ShortlistPage() {
 
                           <button
                             type="button"
-                            onClick={() => setRemoveCode(code)}
+                            onClick={() => setRemoveCode(selectionKey)}
                             className={getButtonClassName("destructive", "md", "mt-5 w-full")}
                           >
                             {t("shortlist.remove")}
@@ -251,12 +282,12 @@ export default function ShortlistPage() {
                       {t("shortlist.requestCodes")}
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-2">
-                      {codes.map((code) => (
+                      {codes.map((selectionKey) => (
                         <li
-                          key={code}
+                          key={selectionKey}
                           className="rounded-lg bg-card px-2.5 py-1 font-mono text-xs font-semibold text-primary ring-1 ring-border"
                         >
-                          {code}
+                          {summaries.get(selectionKey)?.displayLabel ?? selectionKey}
                         </li>
                       ))}
                     </ul>

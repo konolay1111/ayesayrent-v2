@@ -14,6 +14,7 @@ import type {
   PetFilter,
   PublicListingResult,
   PublicPropertyDetail,
+  PublicRoomRateOption,
   PublicSearchFilters,
   SearchFilterOptions,
 } from "@/lib/public-search/types";
@@ -90,9 +91,71 @@ export {
   formatPublicReference,
   formatPetFriendly,
   formatRentThb,
+  formatRoomType,
   formatRoomTypes,
   formatSizeSqm,
+  formatFloor,
+  formatContract,
+  formatDeposit,
 } from "@/lib/public-search/format";
+
+function toPublicRoomRateOption(
+  roomRate: PublicRoomRateRow,
+): PublicRoomRateOption {
+  return {
+    roomRateId: roomRate.room_rate_id,
+    roomType: roomRate.room_type,
+    monthlyRent: roomRate.monthly_rent_thb,
+    sizeSqm: roomRate.size_sqm,
+    floorOptionsRaw: roomRate.floor_options_raw,
+    contractOptionsRaw: roomRate.contract_options_raw,
+    depositMonthsRaw: roomRate.deposit_months_raw,
+    depositAmountThb: roomRate.deposit_amount_thb,
+  };
+}
+
+function sortRoomRatesByRent(roomRates: PublicRoomRateRow[]) {
+  return [...roomRates].sort(
+    (left, right) =>
+      (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
+      (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+function resolveSelectedRoomRate(
+  roomRates: PublicRoomRateRow[],
+  requestedRoomRateId?: string | null,
+): {
+  selectedRoomRate: PublicRoomRateOption;
+  selectedRoomRateIsFallback: boolean;
+} {
+  const sortedRoomRates = sortRoomRatesByRent(roomRates);
+  const fallbackRoomRate = sortedRoomRates[0];
+
+  if (!fallbackRoomRate) {
+    throw new Error("Property has no usable room rates.");
+  }
+
+  const trimmedRequestedRoomRateId = requestedRoomRateId?.trim();
+
+  if (trimmedRequestedRoomRateId) {
+    const matchedRoomRate = roomRates.find(
+      (roomRate) => roomRate.room_rate_id === trimmedRequestedRoomRateId,
+    );
+
+    if (matchedRoomRate) {
+      return {
+        selectedRoomRate: toPublicRoomRateOption(matchedRoomRate),
+        selectedRoomRateIsFallback: false,
+      };
+    }
+  }
+
+  return {
+    selectedRoomRate: toPublicRoomRateOption(fallbackRoomRate),
+    selectedRoomRateIsFallback: Boolean(trimmedRequestedRoomRateId),
+  };
+}
 
 function isUsableRoomRate(roomRate: PublicRoomRateRow) {
   if (
@@ -278,14 +341,7 @@ export async function searchPublicListings(
     properties.map((property) => [property.property_id, property]),
   );
 
-  const groupedMatches = new Map<
-    string,
-    {
-      property: PublicPropertyRow;
-      rooms: PublicRoomRateRow[];
-      amenity: PublicAmenityRow | undefined;
-    }
-  >();
+  const results: PublicListingResult[] = [];
 
   for (const roomRate of roomRates) {
     if (!roomRateMatchesRent(roomRate, filters)) {
@@ -304,58 +360,40 @@ export async function searchPublicListings(
       continue;
     }
 
-    const existing = groupedMatches.get(roomRate.property_id);
-
-    if (existing) {
-      existing.rooms.push(roomRate);
-      continue;
-    }
-
-    groupedMatches.set(roomRate.property_id, {
-      property,
-      rooms: [roomRate],
-      amenity,
+    results.push({
+      propertyId: property.property_id,
+      roomRateId: roomRate.room_rate_id,
+      publicReference: formatPublicReference(property.property_id),
+      area: property.area,
+      transitName: property.transit_name,
+      monthlyRent: roomRate.monthly_rent_thb,
+      roomType: roomRate.room_type,
+      sizeSqm: roomRate.size_sqm,
+      floorOptionsRaw: roomRate.floor_options_raw,
+      contractOptionsRaw: roomRate.contract_options_raw,
+      depositMonthsRaw: roomRate.deposit_months_raw,
+      depositAmountThb: roomRate.deposit_amount_thb,
+      petFriendly: amenity?.pet_friendly ?? null,
+      amenities: amenity ? getPublicAmenityLabels(amenity) : [],
     });
   }
 
-  const results = [...groupedMatches.values()]
-    .map(({ property, rooms, amenity }) => {
-      const sortedRooms = [...rooms].sort(
-        (left, right) =>
-          (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
-          (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
-      );
-      const bestRoom = sortedRooms[0];
-      const roomTypes = [
-        ...new Set(
-          sortedRooms
-            .map((room) => room.room_type?.trim())
-            .filter((roomType): roomType is string => Boolean(roomType)),
-        ),
-      ];
+  results.sort((left, right) => {
+    const leftRent = left.monthlyRent ?? Number.MAX_SAFE_INTEGER;
+    const rightRent = right.monthlyRent ?? Number.MAX_SAFE_INTEGER;
 
-      return {
-        propertyId: property.property_id,
-        publicReference: formatPublicReference(property.property_id),
-        area: property.area,
-        transitName: property.transit_name,
-        lowestMonthlyRent: bestRoom?.monthly_rent_thb ?? null,
-        matchingRoomTypes: roomTypes,
-        sizeSqm: bestRoom?.size_sqm ?? null,
-        petFriendly: amenity?.pet_friendly ?? null,
-        amenities: amenity ? getPublicAmenityLabels(amenity) : [],
-      } satisfies PublicListingResult;
-    })
-    .sort((left, right) => {
-      const leftRent = left.lowestMonthlyRent ?? Number.MAX_SAFE_INTEGER;
-      const rightRent = right.lowestMonthlyRent ?? Number.MAX_SAFE_INTEGER;
+    if (leftRent !== rightRent) {
+      return leftRent - rightRent;
+    }
 
-      if (leftRent !== rightRent) {
-        return leftRent - rightRent;
-      }
+    const propertyCompare = left.propertyId.localeCompare(right.propertyId);
 
-      return left.propertyId.localeCompare(right.propertyId);
-    });
+    if (propertyCompare !== 0) {
+      return propertyCompare;
+    }
+
+    return left.roomRateId.localeCompare(right.roomRateId);
+  });
 
   return { results, error: null };
 }
@@ -390,6 +428,7 @@ export function buildSearchQueryString(filters: PublicSearchFilters) {
 
 export async function getPublicPropertyDetail(
   propertyId: string,
+  requestedRoomRateId?: string | null,
 ): Promise<PublicPropertyDetail | null> {
   const trimmedPropertyId = propertyId.trim();
 
@@ -433,36 +472,44 @@ export async function getPublicPropertyDetail(
   const roomRates = ((roomRateData ?? []) as unknown as PublicRoomRateRow[]).filter(
     isUsableRoomRate,
   );
+
+  if (roomRates.length === 0) {
+    return null;
+  }
+
   const amenity = amenityData as PublicAmenityRow | null;
-  const sortedRooms = [...roomRates].sort(
-    (left, right) =>
-      (left.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER) -
-      (right.monthly_rent_thb ?? Number.MAX_SAFE_INTEGER),
+  const { selectedRoomRate, selectedRoomRateIsFallback } = resolveSelectedRoomRate(
+    roomRates,
+    requestedRoomRateId,
   );
-  const bestRoom = sortedRooms[0];
-  const roomTypes = [
-    ...new Set(
-      sortedRooms
-        .map((room) => room.room_type?.trim())
-        .filter((roomType): roomType is string => Boolean(roomType)),
-    ),
-  ];
+
+  const selectedRow = roomRates.find(
+    (roomRate) => roomRate.room_rate_id === selectedRoomRate.roomRateId,
+  );
+
+  if (
+    selectedRow &&
+    selectedRow.property_id.trim() !== trimmedPropertyId
+  ) {
+    return null;
+  }
 
   return {
     propertyId: property.property_id,
     publicReference: formatPublicReference(property.property_id),
     area: property.area,
     transitName: property.transit_name,
-    lowestMonthlyRent: bestRoom?.monthly_rent_thb ?? null,
-    roomTypes,
-    sizeSqm: bestRoom?.size_sqm ?? null,
     petFriendly: amenity?.pet_friendly ?? null,
     amenities: amenity ? getPublicAmenityLabels(amenity) : [],
+    roomRates: sortRoomRatesByRent(roomRates).map(toPublicRoomRateOption),
+    selectedRoomRate,
+    selectedRoomRateIsFallback,
   };
 }
 
 export async function getSimilarPublicListings(
   propertyId: string,
+  roomRateId: string,
   area: string,
   limit = 3,
 ): Promise<PublicListingResult[]> {
@@ -475,6 +522,12 @@ export async function getSimilarPublicListings(
   });
 
   return results
-    .filter((listing) => listing.propertyId !== propertyId)
+    .filter(
+      (listing) =>
+        !(
+          listing.propertyId === propertyId &&
+          listing.roomRateId === roomRateId
+        ),
+    )
     .slice(0, limit);
 }

@@ -6,7 +6,8 @@ import { Header } from "@/components/Header";
 import { SuccessToastOnMount } from "@/components/shortlist/SuccessToastOnMount";
 import { getServerLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translations";
-import { formatPublicReference } from "@/lib/public-search/queries";
+import { formatPublicReference } from "@/lib/public-search/format";
+import { parseShortlistSelection } from "@/lib/shortlist";
 import { getButtonClassName } from "@/components/ui/Button";
 import {
   publicCardClass,
@@ -78,14 +79,20 @@ export default async function ShortlistSuccessPage({
                 <div>
                   <p className="text-sm font-medium text-foreground">{t("success.selected")}</p>
                   <ul className="mt-3 flex flex-wrap gap-2">
-                    {submittedPropertyIds.map((id) => (
-                      <li
-                        key={id}
-                        className="rounded-lg bg-secondary px-3 py-1.5 font-mono text-sm font-semibold text-primary ring-1 ring-primary/15"
-                      >
-                        {formatPublicReference(id)}
-                      </li>
-                    ))}
+                    {submittedPropertyIds.map((id) => {
+                      const parsedSelection = parseShortlistSelection(id);
+
+                      return (
+                        <li
+                          key={id}
+                          className="rounded-lg bg-secondary px-3 py-1.5 font-mono text-sm font-semibold text-primary ring-1 ring-primary/15"
+                        >
+                          {parsedSelection
+                            ? `${formatPublicReference(parsedSelection.propertyId)} • ${parsedSelection.roomRateId}`
+                            : formatPublicReference(id)}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}
